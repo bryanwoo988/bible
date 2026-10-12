@@ -22,14 +22,18 @@ function save(key, value) {
 
 export const DEFAULT_SETTINGS = {
   fontSize: 19, theme: "system", zh: "cuv", en: null,
-  ttsContent: "both", ttsZhVoice: "", ttsEnVoice: "", ttsRate: 0.9, textMode: "both",
+  ttsContent: "both", ttsZhVoice: "", ttsEnVoice: "", ttsRate: 0.9, textMode: "both", listen: true,
 };
 
 export const state = {
   settings: { ...DEFAULT_SETTINGS, ...load("settings", {}) },
   tabs: load("tabs", null),
   activeTab: load("activeTab", 0),
-  marks: load("marks", {}), // "b.c.v" -> { hl?: color, ul?: color }
+  marks: load("marks", {}), // "b.c.v" -> { hl?: color, ul?: color } (whole verse)
+  // Marks on part of a verse: id -> { b, c, v, lang: "zh"|"en", s, e (char offsets),
+  // hl?, ul?, g (group: one selection may span verses), q (the marked text), last?, t }
+  ranges: load("ranges", {}),
+  rnotes: load("rnotes", {}), // group id -> { text, t } (note on a text selection)
   notes: load("notes", {}), // "b.c.v" -> { text, t }
   bookmarks: load("bookmarks", {}), // "b.c.v" -> t
   history: load("history", []), // [{ b, c, v, t }] newest first
@@ -108,6 +112,8 @@ export function exportBackup() {
     version: 1,
     exported: new Date().toISOString(),
     marks: state.marks,
+    ranges: state.ranges,
+    rnotes: state.rnotes,
     notes: state.notes,
     bookmarks: state.bookmarks,
     history: state.history,
@@ -120,10 +126,12 @@ export function importBackup(data) {
   if (!data || data.app !== "bible-pwa") throw new Error(t("err.notBackup"));
   Object.assign(state.marks, data.marks || {});
   Object.assign(state.notes, data.notes || {});
+  Object.assign(state.ranges, data.ranges || {});
+  Object.assign(state.rnotes, data.rnotes || {});
   Object.assign(state.bookmarks, data.bookmarks || {});
   const seen = new Set(state.history.map((h) => h.t));
   state.history = [...state.history, ...(data.history || []).filter((h) => !seen.has(h.t))]
     .sort((a, b) => b.t - a.t)
     .slice(0, MAX_HISTORY);
-  persist("marks", "notes", "bookmarks", "history");
+  persist("marks", "ranges", "rnotes", "notes", "bookmarks", "history");
 }

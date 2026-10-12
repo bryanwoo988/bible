@@ -22,6 +22,7 @@
   --ul-pink: #e0457f;
   --ul-orange: #e07a1f;
   --top-h: 52px;
+  --nav-h: 60px;
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
   color-scheme: light;
@@ -477,7 +478,7 @@ body.text-en .v .en .badges { display: inline-flex; }
 body.playing .reader { padding-bottom: calc(230px + var(--safe-b)); }
 
 /* ---------- Tap-to-listen bar ---------- */
-.v { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.vn, .badges, .bm-ribbon { -webkit-user-select: none; user-select: none; }
 .v.focus { background: var(--sel); }
 body.quick .pager { display: none; }
 .quickbar {
@@ -492,3 +493,135 @@ body.quick .pager { display: none; }
 .qb-mark { flex-direction: column; gap: 2px !important; padding: 0 14px; background: var(--surface-2); font-size: 13px; color: var(--text-2); }
 .qb-close { width: 44px; color: var(--muted); }
 body.selecting .quickbar { display: none; }
+
+/* =========================================================
+   Bottom navigation + full-screen pages
+   ========================================================= */
+.bottomnav {
+  position: fixed; z-index: 35; left: 0; right: 0; bottom: 0;
+  height: calc(var(--nav-h) + var(--safe-b)); padding-bottom: var(--safe-b);
+  display: flex; background: var(--surface); border-top: 1px solid var(--line);
+}
+.bottomnav button {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  color: var(--muted); font-size: 12px;
+}
+.bottomnav button svg { width: 25px; height: 25px; }
+.bottomnav button.on { color: var(--accent); font-weight: 600; }
+.bottomnav button.on svg { stroke-width: 2.2; }
+
+/* Everything that sat on the bottom edge now sits above the nav bar. */
+.reader { padding-bottom: calc(var(--nav-h) + 96px + var(--safe-b)); }
+body.playing .reader { padding-bottom: calc(var(--nav-h) + 240px + var(--safe-b)); }
+.pager { bottom: calc(var(--nav-h) + 14px + var(--safe-b)); }
+.actionbar, .quickbar, .player { bottom: calc(var(--nav-h) + 8px + var(--safe-b)); }
+.toast { bottom: calc(var(--nav-h) + 90px + var(--safe-b)); }
+
+.page {
+  position: fixed; z-index: 34; left: 0; right: 0; top: 0; bottom: calc(var(--nav-h) + var(--safe-b));
+  background: var(--bg); display: flex; flex-direction: column;
+}
+.page-head {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  padding: calc(8px + var(--safe-t)) 12px 8px 16px; min-height: calc(56px + var(--safe-t));
+  border-bottom: 1px solid var(--line); background: var(--bg);
+}
+.page-head h1 { flex: 1; margin: 0; font-size: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.page-back { display: flex; align-items: center; gap: 2px; color: var(--accent); font-size: 16px; margin-left: -8px; padding: 8px 6px; flex: none; }
+.page-back svg { width: 24px; height: 24px; stroke-width: 2.2; }
+.page-actions { display: flex; gap: 6px; align-items: center; flex: none; }
+.page-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px 16px 28px; }
+.page-body > * { max-width: 720px; margin-left: auto; margin-right: auto; }
+.page-body .list, .page-body .seg.full, .page-body .set-group { max-width: 720px; }
+
+/* Version pill (reader header and book list) */
+.ver-pill {
+  flex: none; height: 36px; padding: 0 12px 0 10px; border-radius: 18px; border: 1.5px solid var(--line);
+  display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--text-2); white-space: nowrap;
+  max-width: 150px;
+}
+.ver-pill span { overflow: hidden; text-overflow: ellipsis; }
+.ver-pill svg { width: 18px; height: 18px; flex: none; }
+.topbar { gap: 4px; padding-left: 10px; }
+.topbar .ref-btn { justify-content: flex-start; padding: 0 6px; font-size: 19px; }
+
+/* Book list (like a table of contents) */
+.continue-card {
+  width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
+  padding: 14px 16px; margin: 4px 0 14px; border-radius: 16px; background: var(--accent); color: var(--bg);
+}
+.continue-card .k { font-size: 13px; opacity: 0.85; }
+.continue-card .r { font-size: 19px; font-weight: 700; margin-top: 2px; }
+.continue-card svg { margin-left: auto; width: 24px; height: 24px; flex: none; }
+.testament-tabs { display: flex; border-bottom: 1px solid var(--line); margin: 6px 0 12px; }
+.testament-tabs button {
+  flex: 1; padding: 12px 4px 10px; font-size: 17px; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -1px;
+}
+.testament-tabs button.on { color: var(--text); font-weight: 700; border-bottom-color: var(--accent); }
+.book-list { display: flex; flex-direction: column; gap: 10px; }
+.book-row {
+  display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
+  padding: 14px 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line);
+}
+.book-row.cur { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.book-row .num {
+  flex: none; width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.book-row .info { flex: 1; min-width: 0; }
+.book-row .name { display: block; font-size: 20px; font-weight: 600; }
+.book-row .meta { display: block; font-size: 14px; color: var(--muted); margin-top: 2px; }
+.book-row .chev-r { flex: none; color: var(--muted); width: 22px; height: 22px; }
+
+/* Chapter numbers */
+.chapter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 10px; }
+.chapter-grid button {
+  height: 64px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line);
+  font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.chapter-grid button.cur { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.chapter-grid button:active { transform: scale(0.96); }
+.page-intro-btn { display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 12px; border-radius: 19px; background: var(--surface-2); font-size: 15px; }
+.page-intro-btn svg { width: 18px; height: 18px; }
+
+/* Version sheet */
+.radio-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.radio-list button {
+  display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-radius: 14px;
+  background: var(--surface); border: 1.5px solid var(--line); font-size: 17px; text-align: left;
+}
+.radio-list button.on { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.radio-list button.on::after { content: "✓"; color: var(--accent); font-weight: 700; }
+
+/* =========================================================
+   Marks on part of a verse
+   ========================================================= */
+.r { border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.r[data-rh="yellow"] { background: var(--hl-yellow); }
+.r[data-rh="green"] { background: var(--hl-green); }
+.r[data-rh="blue"] { background: var(--hl-blue); }
+.r[data-rh="pink"] { background: var(--hl-pink); }
+.r[data-rh="orange"] { background: var(--hl-orange); }
+.r[data-ru] { text-decoration-line: underline; text-decoration-thickness: 2px; text-underline-offset: 0.28em; }
+.r[data-ru="yellow"] { text-decoration-color: var(--ul-yellow); }
+.r[data-ru="green"] { text-decoration-color: var(--ul-green); }
+.r[data-ru="blue"] { text-decoration-color: var(--ul-blue); }
+.r[data-ru="pink"] { text-decoration-color: var(--ul-pink); }
+.r[data-ru="orange"] { text-decoration-color: var(--ul-orange); }
+.r[data-rn]:not([data-ru]) { text-decoration: underline dotted var(--accent); text-decoration-thickness: 2px; text-underline-offset: 0.3em; }
+.rnote {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; margin: 0 2px; vertical-align: -3px;
+  border-radius: 6px; color: var(--accent); background: var(--accent-soft); -webkit-user-select: none; user-select: none;
+}
+.rnote svg { width: 13px; height: 13px; }
+.v ::selection { background: rgba(80, 140, 255, 0.35); }
+.note-quote { font-size: 15px; line-height: 1.6; padding: 10px 12px; background: var(--surface-2); border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0; margin-bottom: 12px; }
+.row .quote { color: var(--text); font-size: 14.5px; margin-top: 3px; }
+.row .quote::before { content: "「"; color: var(--muted); }
+.row .quote::after { content: "」"; color: var(--muted); }
+
+/* Read-aloud mode switch in the header */
+#btn-tts { color: var(--accent); }
+#btn-tts.off { color: var(--muted); }
+#btn-tts.off svg { opacity: 0.55; }
+#btn-tts .lbl { white-space: nowrap; }

@@ -35,25 +35,21 @@
 </head>
 <body>
   <header class="topbar">
-    <button class="icon-btn labeled" id="btn-library" data-i18n-aria="aria.library" aria-label="书签、笔记与历史" title="书签、笔记与历史">
-      <svg viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
-    <span class="lbl" data-i18n="nav.library">我的</span>
-    </button>
     <button class="ref-btn" id="btn-ref" data-i18n-aria="aria.ref" aria-label="选择经卷章节">
       <span id="ref-label">创世记 1</span>
       <svg viewBox="0 0 24 24" class="chev"><path d="M6 9l6 6 6-6"/></svg>
     </button>
+    <button class="ver-pill" id="btn-version" data-i18n-aria="ver.title" aria-label="译本">
+      <svg viewBox="0 0 24 24"><path d="M3 5h8M7 3v2M5 5c0 4 3 7 6 8M9 5c0 3-2 7-6 9"/><path d="M13 21l4-10 4 10M14.5 17.5h5"/></svg>
+      <span id="ver-label"></span>
+    </button>
     <button class="icon-btn labeled" id="btn-tts" data-i18n-aria="nav.read" aria-label="朗读">
       <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
-    <span class="lbl" data-i18n="nav.read">朗读</span>
+      <span class="lbl" data-i18n="nav.read">朗读</span>
     </button>
     <button class="icon-btn labeled" id="btn-intro" data-i18n-aria="nav.intro" aria-label="导读">
       <svg viewBox="0 0 24 24"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H11v17H5.5A1.5 1.5 0 0 1 4 18.5zM20 4.5A1.5 1.5 0 0 0 18.5 3H13v17h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>
-    <span class="lbl" data-i18n="nav.intro">导读</span>
-    </button>
-    <button class="icon-btn labeled" id="btn-settings" data-i18n-aria="nav.settings" aria-label="设置">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-    <span class="lbl" data-i18n="nav.settings">设置</span>
+      <span class="lbl" data-i18n="nav.intro">导读</span>
     </button>
   </header>
 
@@ -113,6 +109,24 @@
       <button data-act="done" class="done" data-i18n="act.done">完成</button>
     </div>
   </div>
+
+  <!-- Full-screen pages: book list, chapters, notes, bookmarks, history, settings -->
+  <section class="page" id="page" hidden>
+    <header class="page-head">
+      <button class="page-back" id="page-back" hidden><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg><span id="page-back-label"></span></button>
+      <h1 id="page-title"></h1>
+      <div class="page-actions" id="page-actions"></div>
+    </header>
+    <div class="page-body" id="page-body"></div>
+  </section>
+
+  <nav class="bottomnav" id="bottomnav">
+    <button data-nav="bible"><svg viewBox="0 0 24 24"><path d="M12 6.5C10.5 5 8 4.5 4 4.5v14c4 0 6.5.5 8 2 1.5-1.5 4-2 8-2v-14c-4 0-6.5.5-8 2z"/><path d="M12 6.5v14"/></svg><span data-i18n="tab.bible">内容</span></button>
+    <button data-nav="notes"><svg viewBox="0 0 24 24"><path d="M4 20h4l10-10-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg><span data-i18n="tab.notes">笔记</span></button>
+    <button data-nav="bookmarks"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span data-i18n="tab.bookmarks">书签</span></button>
+    <button data-nav="history"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-i18n="tab.history">历史</span></button>
+    <button data-nav="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span data-i18n="tab.settings">设定</span></button>
+  </nav>
 
   <!-- Generic bottom sheet -->
   <div class="scrim" id="scrim" hidden></div>

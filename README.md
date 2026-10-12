@@ -4,15 +4,16 @@ A simple bilingual (Chinese / English) Bible app that installs on a phone's home
 
 ## Features
 
-- **中英对照**: each verse shows one line of Chinese, then one line of English
-- **多分页**: open several passages at once (for example the sermon text plus its cross-references) and switch with one tap; each tab remembers its position
-- **快速跳转**: type `约3:16`, `罗8`, `John 3:16` or `1co13`, or pick book, chapter and verse from a grid
-- **朗读**: reads verse by verse (Chinese, English or both; Mandarin or Cantonese; adjustable speed), highlights and scrolls to the current verse, and continues into the next chapter
+- **中英对照**: each verse shows one line of Chinese, then one line of English, or one language only (经文显示)
+- **底部导航**: 内容 (book list → chapters → reading), 笔记, 书签, 历史, 设定
+- **内容**: large Old/New Testament book list, big chapter buttons, "continue reading", recent passages, and reference search (`约3:16`, `John 3:16`, `1co13`)
+- **多分页**: keep several passages open (sermon text plus cross-references), switch with one tap, press and hold to reorder
+- **朗读**: read-aloud mode switch in the header. When on, tap a verse to listen from there; the player has a progress bar, speed control and voice choice, and continues into the next chapter. When off, tapping verses selects them for marking
+- **标记**: press and hold to select any words, even across verses, then highlight or underline in 5 colours, add a note, copy or bookmark; whole verses can be marked too
 - **导读**: an introduction to every book in Chinese and English (author, date, theme, summary, key verse, outline)
-- **标记**: highlight or underline in 5 colours, notes, bookmarks, copy
 - **历史**: a reading log by date and time, showing book, chapter and verse
-- **界面语言**: the interface (button labels, menus, dates) in 简体中文, 繁體中文 or English; the Bible text stays bilingual
-- **设置**: font size, light/dark mode, version choice, read-aloud options, backup and restore
+- **界面语言**: English, 简体中文 or 繁體中文, chosen on first launch
+- **设定**: font size, light/dark mode, versions, read-aloud voices, backup and restore
 - Data is stored on the device (localStorage / IndexedDB); nothing is uploaded
 
 ## 译本 Versions

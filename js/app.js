@@ -60,6 +60,7 @@ async function render({ scrollTo, flash } = {}) {
   const { b, c } = tab;
   const book = BOOKS[b];
   $("#ref-label").textContent = `${bookName(b)} ${c}`;
+  updateVersionLabels();
   document.title = `${bookName(b)} ${c} · ${t("app.title")}`;
   $("#btn-prev").disabled = b === 0 && c === 1;
   $("#btn-next").disabled = b === 65 && c === book.chapters;
@@ -113,10 +114,10 @@ function verseHTML(b, c, v, zh, en) {
   const note = state.notes[k];
   const attrs = [mark.hl ? `data-hl="${mark.hl}"` : "", mark.ul ? `data-ul="${mark.ul}"` : ""].join(" ");
   const zhHtml = zh
-    ? `<span class="t">${esc(zh)}</span>`
+    ? `<span class="t">${markedHTML(b, c, v, "zh", zh)}</span>`
     : zh === "" ? `<span class="empty">${t("merged")}</span>` : "";
   const enHtml = en === undefined ? "" : en
-    ? `<span class="t">${esc(en)}</span>`
+    ? `<span class="t">${markedHTML(b, c, v, "en", en)}</span>`
     : `<span class="empty">${en === "" ? "(Not in the earliest manuscripts)" : ""}</span>`;
   // The note badge sits on both lines; CSS shows it on the visible one.
   const badge = note ? `<span class="badges"><button class="badge" data-note="${v}" aria-label="${t("act.note")}">${ICON.note}</button></span>` : "";
@@ -127,6 +128,89 @@ function verseHTML(b, c, v, zh, en) {
     ${enHtml ? `<p class="en">${enHtml}${badge}</p>` : ""}
     ${note ? `<div class="note-preview" data-note="${v}">${esc(note.text)}</div>` : ""}
   </div>`;
+}
+
+/* ---------- Marks on part of a verse ---------- */
+
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+// Offsets are only valid for the text they were made on; 简体/繁體 和合本 line up.
+const verFamily = (lang) => {
+  const id = lang === "zh" ? state.settings.zh : englishVersion();
+  return id === "cuvt" ? "cuv" : id;
+};
+
+/** Verse text as HTML with highlight/underline/note spans for any partial marks. */
+function markedHTML(b, c, v, lang, text) {
+  const fam = verFamily(lang);
+  const list = Object.values(state.ranges)
+    .filter((r) => r.b === b && r.c === c && r.v === v && r.lang === lang && r.ver === fam && r.s < r.e && r.e <= text.length)
+    .sort((a, z) => a.t - z.t);
+  if (!list.length) return esc(text);
+  const cuts = [...new Set([0, text.length, ...list.flatMap((r) => [r.s, r.e])])].sort((a, z) => a - z);
+  let out = "";
+  for (let i = 0; i < cuts.length - 1; i++) {
+    const from = cuts[i], to = cuts[i + 1];
+    const piece = esc(text.slice(from, to));
+    const on = list.filter((r) => r.s <= from && r.e >= to);
+    if (!on.length) out += piece;
+    else {
+      const hl = on.findLast((r) => r.hl)?.hl;
+      const ul = on.findLast((r) => r.ul)?.ul;
+      const noted = on.some((r) => state.rnotes[r.g]);
+      out += `<span class="r"${hl ? ` data-rh="${hl}"` : ""}${ul ? ` data-ru="${ul}"` : ""}${noted ? " data-rn" : ""}>${piece}</span>`;
+    }
+    for (const r of list) {
+      if (r.e === to && r.last && state.rnotes[r.g]) out += `<button class="rnote" data-rnote="${r.g}" aria-label="${t("act.note")}">${ICON.note}</button>`;
+    }
+  }
+  return out;
+}
+
+/** Pieces of the reader's current text selection, one per verse line. */
+function selectionPieces() {
+  const sel = getSelection();
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return [];
+  const range = sel.getRangeAt(0);
+  if (!chapterEl.contains(range.commonAncestorContainer)) return [];
+  const offsetIn = (root, node, off) => {
+    const r = document.createRange();
+    r.setStart(root, 0);
+    r.setEnd(node, off);
+    return r.toString().length;
+  };
+  const { b, c } = activeTab();
+  const pieces = [];
+  for (const tEl of chapterEl.querySelectorAll(".v .t")) {
+    if (!range.intersectsNode(tEl) || !tEl.offsetParent) continue;
+    const len = tEl.textContent.length;
+    const s = tEl.contains(range.startContainer) ? offsetIn(tEl, range.startContainer, range.startOffset) : 0;
+    const e = tEl.contains(range.endContainer) ? offsetIn(tEl, range.endContainer, range.endOffset) : len;
+    const q = tEl.textContent.slice(s, e);
+    if (e > s && q.trim()) pieces.push({ b, c, v: Number(tEl.closest(".v").dataset.v), lang: tEl.closest(".zh") ? "zh" : "en", s, e, q });
+  }
+  return pieces;
+}
+
+const groupPieces = (g) =>
+  Object.entries(state.ranges)
+    .filter(([, r]) => r.g === g)
+    .map(([id, r]) => ({ id, ...r }))
+    .sort((a, z) => a.b - z.b || a.c - z.c || a.v - z.v || (a.lang === z.lang ? 0 : a.lang === "zh" ? -1 : 1) || a.s - z.s);
+const groupQuote = (g) => groupPieces(g).map((p) => p.q).join(" … ");
+
+function addPieces(pieces, props) {
+  const g = newId();
+  const now = Date.now();
+  pieces.forEach((p, i) => {
+    state.ranges[newId()] = { ...p, ver: verFamily(p.lang), ...props, g, last: i === pieces.length - 1, t: now + i };
+  });
+  return g;
+}
+
+/** Re-render the verses of the current chapter that these pieces touch. */
+function refreshPieces(pieces) {
+  const { b, c } = activeTab();
+  [...new Set(pieces.filter((p) => p.b === b && p.c === c).map((p) => p.v))].forEach(rerenderVerse);
 }
 
 function renderBanner(enId) {
@@ -188,16 +272,19 @@ $("#btn-next").onclick = () => step(1);
 chapterEl.addEventListener("click", (e) => {
   const goBtn = e.target.closest("[data-go]");
   if (goBtn) return step(goBtn.dataset.go === "next" ? 1 : -1);
+  const rnote = e.target.closest("[data-rnote]");
+  if (rnote) return openRangeNote({ g: rnote.dataset.rnote });
   const noteBtn = e.target.closest("[data-note]");
   if (noteBtn) return openNote(Number(noteBtn.dataset.note));
   const verse = e.target.closest(".v");
   if (!verse) return;
-  if (suppressClick) {
-    suppressClick = false; // the click that ends a long-press
+  // A tap while text is selected just dismisses the selection.
+  if (textPieces.length || !getSelection().isCollapsed) {
+    clearSelection();
     return;
   }
   const v = Number(verse.dataset.v);
-  if (selection.size) toggleSelect(v); // marking mode: tap adds/removes verses
+  if (selection.size || !state.settings.listen) toggleSelect(v); // marking: tap adds/removes verses
   else if (tts.on) {
     // While listening, tapping a verse continues reading from there.
     ttsJump(0, v);
@@ -206,12 +293,10 @@ chapterEl.addEventListener("click", (e) => {
   else showQuick(v);
 });
 
-/* ---------- Tap = listen; long-press = marking tools ---------- */
+/* ---------- Tap = listen (when read-aloud mode is on); long-press = select text ---------- */
 
 const quickbar = $("#quickbar");
 let focusV = null;
-let suppressClick = false;
-let press = null;
 
 function showQuick(v) {
   hideQuick();
@@ -229,52 +314,40 @@ function hideQuick() {
   document.body.classList.remove("quick");
 }
 
-function startMarking(v) {
-  hideQuick();
-  if (!selection.has(v)) toggleSelect(v);
-}
-
 $("#qb-play").onclick = () => {
   const v = focusV;
   hideQuick();
   ttsStart(v);
 };
-$("#qb-mark").onclick = () => startMarking(focusV);
+$("#qb-mark").onclick = () => {
+  const v = focusV;
+  hideQuick();
+  toggleSelect(v);
+};
 $("#qb-close").onclick = hideQuick;
 
-chapterEl.addEventListener("pointerdown", (e) => {
-  const verse = e.target.closest(".v");
-  if (!verse || e.target.closest("button") || e.button > 0) return;
-  const v = Number(verse.dataset.v);
-  press = {
-    x: e.clientX, y: e.clientY,
-    timer: setTimeout(() => {
-      press = null;
-      suppressClick = true;
-      setTimeout(() => (suppressClick = false), 400);
-      navigator.vibrate?.(15);
-      startMarking(v);
-    }, 500),
-  };
-});
-chapterEl.addEventListener("pointermove", (e) => {
-  if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) {
-    clearTimeout(press.timer);
-    press = null;
-  }
-});
-for (const type of ["pointerup", "pointercancel"]) {
-  chapterEl.addEventListener(type, () => {
-    if (press) clearTimeout(press.timer);
-    press = null;
-  });
-}
-// Right-click on desktop works like a long-press.
-chapterEl.addEventListener("contextmenu", (e) => {
-  const verse = e.target.closest(".v");
-  if (!verse) return;
-  e.preventDefault();
-  startMarking(Number(verse.dataset.v));
+// Long-pressing text uses the phone's own text selection; we follow it here.
+let textPieces = [];
+let toolbarTouch = 0;
+let selTimer;
+document.addEventListener("selectionchange", () => {
+  clearTimeout(selTimer);
+  selTimer = setTimeout(() => {
+    const pieces = selectionPieces();
+    if (pieces.length) {
+      textPieces = pieces;
+      if (selection.size) {
+        selection.clear();
+        $$(".v.sel", chapterEl).forEach((el) => el.classList.remove("sel"));
+      }
+      hideQuick();
+      updateActionbar();
+    } else if (textPieces.length && Date.now() - toolbarTouch > 800) {
+      // Tapping the toolbar can collapse the selection on phones; keep the pieces then.
+      textPieces = [];
+      updateActionbar();
+    }
+  }, 120);
 });
 
 // Swipe left/right to change chapter.
@@ -284,7 +357,7 @@ reader.addEventListener("touchstart", (e) => {
   touch = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
 }, { passive: true });
 reader.addEventListener("touchend", (e) => {
-  if (!touch || selection.size) return;
+  if (!touch || selection.size || !getSelection().isCollapsed) return;
   const dx = e.changedTouches[0].clientX - touch.x;
   const dy = e.changedTouches[0].clientY - touch.y;
   const fast = Date.now() - touch.t < 600;
@@ -293,7 +366,7 @@ reader.addEventListener("touchend", (e) => {
 }, { passive: true });
 
 document.addEventListener("keydown", (e) => {
-  if (e.target.closest("input, textarea, select") || !$("#sheet").hidden) return;
+  if (e.target.closest("input, textarea, select") || !$("#sheet").hidden || !page.hidden) return;
   if (e.key === "ArrowLeft") step(-1);
   if (e.key === "ArrowRight") step(1);
 });
@@ -443,11 +516,11 @@ $("#tabstrip").addEventListener("click", (e) => {
     persist("tabs", "activeTab");
     return render();
   }
-  if (e.target.closest("#tab-add")) return openNavigator({ newTab: true });
+  if (e.target.closest("#tab-add")) return openBooks({ newTab: true });
   const tab = e.target.closest("[data-tab]");
   if (!tab) return;
   const i = Number(tab.dataset.tab);
-  if (i === state.activeTab) return openNavigator();
+  if (i === state.activeTab) return openBooks({ newTab: false });
   ttsStop();
   state.activeTab = i;
   persist("activeTab");
@@ -473,16 +546,27 @@ function toggleSelect(v) {
 function clearSelection() {
   selection.clear();
   $$(".v.sel", chapterEl).forEach((el) => el.classList.remove("sel"));
+  if (textPieces.length) {
+    textPieces = [];
+    const sel = getSelection();
+    if (sel && !sel.isCollapsed && chapterEl.contains(sel.anchorNode)) sel.removeAllRanges();
+  }
   updateActionbar();
+}
+
+/** Verses the action bar acts on: selected verses, or those touched by selected text. */
+function selectedVerses() {
+  const vs = textPieces.length ? textPieces.map((p) => p.v) : [...selection];
+  return [...new Set(vs)].sort((a, z) => a - z);
 }
 
 function selectedKeys() {
   const { b, c } = activeTab();
-  return [...selection].sort((a, z) => a - z).map((v) => vkey(b, c, v));
+  return selectedVerses().map((v) => vkey(b, c, v));
 }
 
 function updateActionbar() {
-  const on = selection.size > 0;
+  const on = selection.size > 0 || textPieces.length > 0;
   actionbar.hidden = !on;
   document.body.classList.toggle("selecting", on);
   if (!on) return;
@@ -491,7 +575,7 @@ function updateActionbar() {
   const bm = $('[data-act="bookmark"]', actionbar);
   bm.classList.toggle("on", allBookmarked);
   bm.querySelector("[data-bm-label]").textContent = t(allBookmarked ? "act.unbookmark" : "act.bookmark");
-  const current = keys.length === 1 ? state.marks[keys[0]]?.[markMode] : null;
+  const current = !textPieces.length && keys.length === 1 ? state.marks[keys[0]]?.[markMode] : null;
   $$("#colors button").forEach((btn) => btn.classList.toggle("on", btn.dataset.c === current));
 }
 
@@ -507,6 +591,7 @@ $("#colors").addEventListener("click", (e) => {
   const btn = e.target.closest("[data-c]");
   if (!btn) return;
   markColor = btn.dataset.c;
+  if (textPieces.length) return markText(markMode, markColor);
   const keys = selectedKeys();
   // Tapping the color a single verse already has removes it.
   const remove = keys.every((k) => state.marks[k]?.[markMode] === markColor);
@@ -522,14 +607,50 @@ $("#colors").addEventListener("click", (e) => {
   clearSelection();
 });
 
+// Keep the text selection alive while the toolbar is being used.
+actionbar.addEventListener("pointerdown", () => (toolbarTouch = Date.now()));
+actionbar.addEventListener("mousedown", (e) => e.preventDefault());
+
+function markText(mode, color) {
+  const pieces = textPieces;
+  const same = (r, p) => r.b === p.b && r.c === p.c && r.v === p.v && r.lang === p.lang && r.s === p.s && r.e === p.e;
+  const matches = pieces.map((p) => Object.entries(state.ranges).find(([, r]) => same(r, p) && r[mode] === color));
+  if (matches.every(Boolean)) {
+    // The exact same text already has this colour: tapping again removes it.
+    for (const [id, r] of matches) {
+      delete r[mode];
+      if (!r.hl && !r.ul && !state.rnotes[r.g]) delete state.ranges[id];
+    }
+  } else addPieces(pieces, { [mode]: color });
+  persist("ranges");
+  clearSelection();
+  refreshPieces(pieces);
+}
+
+function clearText() {
+  const pieces = textPieces;
+  for (const [id, r] of Object.entries(state.ranges)) {
+    const hit = pieces.some((p) => r.b === p.b && r.c === p.c && r.v === p.v && r.lang === p.lang && r.s < p.e && r.e > p.s);
+    if (!hit) continue;
+    delete r.hl;
+    delete r.ul;
+    if (!state.rnotes[r.g]) delete state.ranges[id];
+  }
+  persist("ranges");
+  clearSelection();
+  refreshPieces(pieces);
+}
+
 actionbar.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-act]");
   if (!btn) return;
   const keys = selectedKeys();
-  const verses = [...selection].sort((a, z) => a - z);
+  const verses = selectedVerses();
+  const pieces = textPieces;
   switch (btn.dataset.act) {
     case "note":
-      openNote(verses[0]);
+      if (pieces.length) openRangeNote({ pieces });
+      else openNote(verses[0]);
       break;
     case "bookmark": {
       const add = !keys.every((k) => state.bookmarks[k]);
@@ -545,7 +666,7 @@ actionbar.addEventListener("click", async (e) => {
       ttsStart(verses[0]);
       break;
     case "copy": {
-      const text = copyText(verses);
+      const text = pieces.length ? copySelection(pieces) : copyText(verses);
       try {
         await navigator.clipboard.writeText(text);
         toast(t("toast.copied"));
@@ -556,6 +677,10 @@ actionbar.addEventListener("click", async (e) => {
       break;
     }
     case "clear":
+      if (pieces.length) {
+        clearText();
+        break;
+      }
       for (const k of keys) delete state.marks[k];
       persist("marks");
       verses.forEach(rerenderVerse);
@@ -565,6 +690,13 @@ actionbar.addEventListener("click", async (e) => {
       clearSelection();
   }
 });
+
+function copySelection(pieces) {
+  const { b, c } = activeTab();
+  const vs = [...new Set(pieces.map((p) => p.v))];
+  const range = vs.length === 1 ? `${vs[0]}` : `${vs[0]}-${vs[vs.length - 1]}`;
+  return `${getSelection().toString().trim() || pieces.map((p) => p.q).join(" ")}\n— ${zhBookName(b)} ${c}:${range} / ${BOOKS[b].en} ${c}:${range}`;
+}
 
 function copyText(verses) {
   const { b, c } = activeTab();
@@ -778,7 +910,24 @@ function ttsJump(delta, absolute = null) {
   else markReading();
 }
 
-$("#btn-tts").onclick = () => (tts.on ? ttsStop() : ttsStart());
+// The header button switches read-aloud mode on/off. When off, tapping a verse
+// selects it for highlighting, notes and copying instead of offering to read it.
+function updateListenButton() {
+  const on = state.settings.listen;
+  const btn = $("#btn-tts");
+  btn.classList.toggle("off", !on);
+  btn.setAttribute("aria-pressed", String(on));
+  $(".lbl", btn).textContent = t(on ? "listen.on" : "listen.off");
+}
+$("#btn-tts").onclick = () => {
+  state.settings.listen = !state.settings.listen;
+  persist("settings");
+  if (!state.settings.listen) ttsStop();
+  hideQuick();
+  clearSelection();
+  updateListenButton();
+  toast(t(state.settings.listen ? "listen.onToast" : "listen.offToast"));
+};
 $("#pl-play").onclick = () => (tts.playing ? ttsPause() : ttsResume());
 $("#pl-stop").onclick = ttsStop;
 $("#pl-prev").onclick = () => ttsJump(-1);
@@ -877,80 +1026,206 @@ function toast(msg) {
   toastTimer = setTimeout(() => (el.hidden = true), 1800);
 }
 
-/* ---------- Navigator: book → chapter → verse ---------- */
+/* ============================================================
+   Full-screen pages (bottom navigation)
+   ============================================================ */
 
-function openNavigator({ newTab = false, title = null } = {}) {
+const page = $("#page");
+let view = "reader"; // reader | books | chapters | notes | bookmarks | history | settings
+let bibleView = "reader"; // last place inside the Bible tab
+const NAV_OF = { reader: "bible", books: "bible", chapters: "bible", notes: "notes", bookmarks: "bookmarks", history: "history", settings: "settings" };
+const CHEVRON = '<svg viewBox="0 0 24 24" class="chev-r"><path d="M9 6l6 6-6 6"/></svg>';
+
+function openPage(name, title, html, { back = null, actions = "" } = {}) {
+  view = name;
+  if (NAV_OF[name] === "bible") bibleView = name;
+  if (!sheet.hidden) closeSheet();
+  clearSelection();
+  hideQuick();
+  $("#page-title").textContent = title;
+  const backBtn = $("#page-back");
+  backBtn.hidden = !back;
+  backBtn.onclick = back?.onClick || null;
+  $("#page-back-label").textContent = back?.label || "";
+  $("#page-actions").innerHTML = actions;
+  const body = $("#page-body");
+  body.onclick = null;
+  body.innerHTML = html;
+  body.scrollTop = 0;
+  page.hidden = false;
+  updateNav();
+  return body;
+}
+
+function showReader() {
+  view = bibleView = "reader";
+  page.hidden = true;
+  updateNav();
+}
+
+function updateNav() {
+  $$("#bottomnav button").forEach((b) => b.classList.toggle("on", b.dataset.nav === NAV_OF[view]));
+}
+
+$("#bottomnav").onclick = (e) => {
+  const btn = e.target.closest("[data-nav]");
+  if (!btn) return;
+  if (!sheet.hidden) closeSheet();
+  switch (btn.dataset.nav) {
+    case "bible":
+      // Like iOS tab bars: tapping the active tab goes back to its first screen.
+      if (view === "reader" || view === "chapters") openBooks();
+      else if (view === "books") $("#page-body").scrollTop = 0;
+      else if (bibleView === "reader") showReader();
+      else openBooks();
+      break;
+    case "notes": openNotesPage(); break;
+    case "bookmarks": openBookmarksPage(); break;
+    case "history": openHistoryPage(); break;
+    case "settings": openSettings(); break;
+  }
+};
+$("#page-actions").addEventListener("click", (e) => {
+  if (e.target.closest("[data-version]")) openVersionSheet();
+  const intro = e.target.closest("[data-intro]");
+  if (intro) openIntro(Number(intro.dataset.intro));
+});
+
+/* ---------- Book list and chapter numbers ---------- */
+
+let booksTestament = null;
+let pendingNewTab = false;
+
+const versionPill = () =>
+  `<button class="ver-pill" data-version><svg viewBox="0 0 24 24"><path d="M3 5h8M7 3v2M5 5c0 4 3 7 6 8M9 5c0 3-2 7-6 9"/><path d="M13 21l4-10 4 10M14.5 17.5h5"/></svg><span>${esc(versionLabel())}</span></button>`;
+
+/** Open a passage chosen from a page, in the current tab or a new one. */
+function goFromPage(b, c, v = null) {
+  const newTab = pendingNewTab;
+  pendingNewTab = false;
+  showReader();
+  go(b, c, v, { flash: !!v && v > 1, newTab });
+}
+
+function openBooks({ newTab = pendingNewTab, title = null } = {}) {
+  pendingNewTab = newTab;
   const tab = activeTab();
-  const body = openSheet(title || t(newTab ? "nav.titleNewTab" : "nav.title"), "", { tall: true });
-  let pick = { b: null, c: null };
-  let testament = BOOKS[tab.b].nt ? "nt" : "ot";
-
+  booksTestament ||= BOOKS[tab.b].nt ? "nt" : "ot";
+  const body = openPage("books", title || t(newTab ? "nav.titleNewTab" : "books.title"), "", {
+    actions: versionPill(),
+    back: newTab ? { label: t("cancel"), onClick: () => { pendingNewTab = false; showReader(); } } : null,
+  });
   const draw = () => {
-    let html = `<form class="search" id="nav-search">
+    const recent = recentPassages(6);
+    const books = booksTestament === "ot" ? BOOKS.slice(0, 39) : BOOKS.slice(39);
+    body.innerHTML = `
+      <form class="search" id="nav-search">
         ${ICON.search}
         <input id="nav-q" type="search" placeholder="${t("nav.placeholder")}" autocomplete="off" enterkeyhint="go">
         <button class="go" type="submit">${t("nav.go")}</button>
-      </form>`;
-    if (pick.b === null) {
-      const recent = recentPassages(6);
-      if (recent.length) {
-        html += `<div class="nav-section">${t("nav.recent")}</div>
-          <div class="recent">${recent.map((h) => `<button data-recent="${vkey(h.b, h.c, h.v)}">${esc(shortRef(h.b, h.c, h.v > 1 ? h.v : null))}</button>`).join("")}</div>`;
-      }
-      html += `<div class="seg full nav-testament">
-          <button data-test="ot" class="${testament === "ot" ? "on" : ""}">${t("nav.ot")}<small>${t("nav.books", { n: 39 })}</small></button>
-          <button data-test="nt" class="${testament === "nt" ? "on" : ""}">${t("nav.nt")}<small>${t("nav.books", { n: 27 })}</small></button>
-        </div>
-        <div class="grid">${testament === "ot" ? bookButtons(0, 39, tab.b) : bookButtons(39, 66, tab.b)}</div>`;
-    } else if (pick.c === null) {
-      const book = BOOKS[pick.b];
-      html += `<div class="nav-crumb"><button data-back="book">${t("nav.allBooks")}</button><strong>${esc(bookName(pick.b))}</strong><span class="hint">${esc(otherBookName(pick.b))}</span></div>
-        <div class="grid nums">${range(book.chapters).map((c) => `<button data-c="${c}" class="${pick.b === tab.b && c === tab.c ? "cur" : ""}">${c}</button>`).join("")}</div>`;
-    } else {
-      const n = (async () => (await getChapter(state.settings.zh, pick.b, pick.c))?.length || 0)();
-      html += `<div class="nav-crumb"><button data-back="chapter">‹ ${esc(bookName(pick.b))}</button><strong>${t(pick.b === 18 ? "nav.psalm" : "nav.chapter", { c: pick.c })}</strong>
-        <button data-v="1" style="margin-left:auto">${t("nav.wholeChapter")}</button></div>
-        <div class="grid nums" id="verse-grid"><div class="hint">${t("loading")}</div></div>`;
-      n.then((count) => {
-        const g = $("#verse-grid", body);
-        if (g) g.innerHTML = range(count).map((v) => `<button data-v="${v}">${v}</button>`).join("");
-      });
-    }
-    body.innerHTML = html;
+      </form>
+      ${!newTab && state.settings.onboarded && state.history.length ? `<button class="continue-card" data-continue>
+          <span><span class="k">${t("books.continue")}</span><span class="r" style="display:block">${esc(refText(tab.b, tab.c, tab.v > 1 ? tab.v : null))}</span></span>
+          <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>` : ""}
+      ${recent.length ? `<div class="nav-section">${t("nav.recent")}</div>
+        <div class="recent">${recent.map((h) => `<button data-recent="${vkey(h.b, h.c, h.v)}">${esc(shortRef(h.b, h.c, h.v > 1 ? h.v : null))}</button>`).join("")}</div>` : ""}
+      <div class="testament-tabs">
+        <button data-test="ot" class="${booksTestament === "ot" ? "on" : ""}">${t("nav.ot")}</button>
+        <button data-test="nt" class="${booksTestament === "nt" ? "on" : ""}">${t("nav.nt")}</button>
+      </div>
+      <div class="book-list">${books.map((bk, i) => `<button class="book-row${bk.i === tab.b ? " cur" : ""}" data-b="${bk.i}">
+          <span class="num">${i + 1}</span>
+          <span class="info"><span class="name">${esc(bookName(bk.i))}</span>
+            <span class="meta">${esc(otherBookName(bk.i))} · ${t(bk.i === 18 ? "intro.psalms" : "intro.chapters", { n: bk.chapters })}</span></span>
+          ${CHEVRON}</button>`).join("")}</div>`;
     $("#nav-search", body).onsubmit = (e) => {
       e.preventDefault();
       const r = parseRef($("#nav-q", body).value);
       if (!r) return toast(t("nav.notFound"));
-      closeSheet();
-      go(r.book, r.chapter, r.verse, { flash: true, newTab });
+      goFromPage(r.book, r.chapter, r.verse);
     };
-    body.scrollTop = 0;
-    if (pick.b === null && !matchMedia("(pointer: coarse)").matches) $("#nav-q", body).focus({ preventScroll: true });
   };
-
   body.onclick = (e) => {
     const el = e.target.closest("button");
     if (!el || el.closest("form")) return;
+    if (el.dataset.continue !== undefined) return showReader();
     if (el.dataset.recent) {
       const { b, c, v } = parseKey(el.dataset.recent);
-      closeSheet();
-      return go(b, c, v, { flash: v > 1, newTab });
+      return goFromPage(b, c, v);
     }
-    if (el.dataset.test) testament = el.dataset.test;
-    else if (el.dataset.back === "book") pick = { b: null, c: null };
-    else if (el.dataset.back === "chapter") pick.c = null;
-    else if (el.dataset.b) {
-      pick.b = Number(el.dataset.b);
-      if (BOOKS[pick.b].chapters === 1) pick.c = 1;
-    } else if (el.dataset.c) pick.c = Number(el.dataset.c);
-    else if (el.dataset.v) {
-      closeSheet();
-      return go(pick.b, pick.c, Number(el.dataset.v), { flash: el.dataset.v !== "1" || false, newTab });
-    } else return;
-    draw();
-    $("#sheet-body").scrollTop = 0;
+    if (el.dataset.test) {
+      booksTestament = el.dataset.test;
+      const top = $(".testament-tabs", body).offsetTop - 8;
+      draw();
+      body.scrollTop = Math.min(body.scrollTop, top);
+      return;
+    }
+    if (el.dataset.b) {
+      const b = Number(el.dataset.b);
+      if (BOOKS[b].chapters === 1) return goFromPage(b, 1);
+      openChapters(b);
+    }
   };
   draw();
+}
+
+function openChapters(b) {
+  const tab = activeTab();
+  const book = BOOKS[b];
+  const body = openPage("chapters", bookName(b), `
+    <p class="hint" style="margin:2px 2px 14px">${esc(otherBookName(b))} · ${t(b === 18 ? "intro.psalms" : "intro.chapters", { n: book.chapters })}</p>
+    <div class="chapter-grid">${range(book.chapters).map((c) =>
+      `<button data-c="${c}" class="${!pendingNewTab && b === tab.b && c === tab.c ? "cur" : ""}">${c}</button>`).join("")}</div>`, {
+    back: { label: t("books.back"), onClick: () => openBooks() },
+    actions: `<button class="page-intro-btn" data-intro="${b}"><svg viewBox="0 0 24 24"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H11v17H5.5A1.5 1.5 0 0 1 4 18.5zM20 4.5A1.5 1.5 0 0 0 18.5 3H13v17h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>${t("nav.intro")}</button>`,
+  });
+  body.onclick = (e) => {
+    const el = e.target.closest("[data-c]");
+    if (el) goFromPage(b, Number(el.dataset.c));
+  };
+}
+
+/* ---------- Version & display sheet ---------- */
+
+function versionLabel() {
+  const s = state.settings;
+  const zh = versionMeta(s.zh)?.short;
+  const en = versionMeta(englishVersion())?.short;
+  if (s.textMode === "zh") return zh;
+  if (s.textMode === "en") return en || zh;
+  return [zh, en].filter(Boolean).join(" · ");
+}
+
+function updateVersionLabels() {
+  const label = versionLabel() || "";
+  $("#ver-label").textContent = label;
+  $$("[data-version] span").forEach((el) => (el.textContent = label));
+}
+
+function openVersionSheet() {
+  const s = state.settings;
+  const versions = allVersions();
+  const enId = englishVersion();
+  const radios = (group, items, cur) =>
+    `<div class="radio-list" data-group="${group}">${items.map(([v, label]) => `<button data-v="${esc(v)}" class="${v === cur ? "on" : ""}">${esc(label)}</button>`).join("")}</div>`;
+  const body = openSheet(t("ver.sheet"), `
+    <div class="set-title">${t("set.display")}</div>
+    ${radios("textMode", ["both", "zh", "en"].map((v) => [v, t("display." + v)]), s.textMode)}
+    <div class="set-title">${t("ver.zh")}</div>
+    ${radios("zh", versions.filter((v) => v.lang === "zh").map((v) => [v.id, v.name]), s.zh)}
+    <div class="set-title">${t("ver.en")}</div>
+    ${radios("en", versions.filter((v) => v.lang === "en").map((v) => [v.id, v.name]), enId)}`);
+  body.onclick = (e) => {
+    const btn = e.target.closest("[data-v]");
+    if (!btn) return;
+    const group = btn.closest("[data-group]").dataset.group;
+    s[group] = btn.dataset.v;
+    persist("settings");
+    $$(`[data-group="${group}"] button`, body).forEach((x) => x.classList.toggle("on", x === btn));
+    applySettings();
+    if (group !== "textMode") render({ scrollTo: topVisibleVerse() || activeTab().v });
+    if (group === "zh") prefetchVersion(s.zh);
+  };
 }
 
 /** Most recently read chapters, newest first, one entry per chapter. */
@@ -968,16 +1243,9 @@ function recentPassages(n) {
 }
 
 const range = (n) => Array.from({ length: n }, (_, i) => i + 1);
-const bookButtons = (from, to, cur) =>
-  BOOKS.slice(from, to)
-    .map((b) => {
-      const zh = trad() ? b.zht.replace(/[書記]$/, "") : b.zh.replace(/[书记]$/, "");
-      const [main, sub] = isEn() ? [b.enAbbr, zh] : [zh, b.enAbbr];
-      return `<button data-b="${b.i}" class="${b.i === cur ? "cur" : ""}">${esc(main)}<small>${esc(sub)}</small></button>`;
-    })
-    .join("");
 
-$("#btn-ref").onclick = () => openNavigator();
+$("#btn-ref").onclick = () => openBooks({ newTab: false });
+$("#btn-version").onclick = () => openVersionSheet();
 
 /* ---------- Note editor ---------- */
 
@@ -1021,26 +1289,62 @@ function openNote(v) {
   };
 }
 
-/* ---------- Library: bookmarks, notes, marks, history ---------- */
-
-let libTab = "bookmarks";
-
-function openLibrary() {
-  const body = openSheet(t("lib.title"), "", { tall: true });
-  const draw = () => {
-    body.innerHTML = `<div class="seg full" id="lib-seg">
-        ${["bookmarks", "notes", "marks", "history"]
-          .map((id) => `<button data-lib="${id}" class="${libTab === id ? "on" : ""}">${t("lib." + id)}</button>`).join("")}
-      </div><div id="lib-list"></div>`;
-    $("#lib-seg", body).onclick = (e) => {
-      const el = e.target.closest("[data-lib]");
-      if (!el) return;
-      libTab = el.dataset.lib;
-      draw();
-    };
-    const list = $("#lib-list", body);
-    ({ bookmarks: drawBookmarks, notes: drawNotes, marks: drawMarks, history: drawHistory })[libTab](list);
+/** Note attached to selected words (pieces) or to an existing group g. */
+function openRangeNote({ g = null, pieces = null }) {
+  const existing = g ? state.rnotes[g] : null;
+  const parts = g ? groupPieces(g) : pieces;
+  if (!parts?.length) return;
+  const first = parts[0];
+  const quote = parts.map((p) => p.q).join(" … ");
+  const body = openSheet(t("note.title"), `
+    <div class="note-ref">${esc(refText(first.b, first.c, first.v))} · ${esc(otherRef(first.b, first.c, first.v))}</div>
+    <div class="note-quote">${esc(quote)}</div>
+    <textarea class="note-input" id="note-text" placeholder="${t("note.placeholder")}">${esc(existing?.text || "")}</textarea>
+    <div class="note-actions">
+      ${existing ? `<button class="btn danger" id="note-del">${t("delete")}</button>` : ""}
+      <button class="btn" id="note-cancel">${t("cancel")}</button>
+      <button class="btn primary" id="note-save">${t("save")}</button>
+    </div>`);
+  const ta = $("#note-text", body);
+  setTimeout(() => ta.focus(), 250);
+  const done = (msg) => {
+    persist("ranges", "rnotes");
+    closeSheet();
+    clearSelection();
+    refreshPieces(parts);
+    toast(t(msg));
   };
+  $("#note-cancel", body).onclick = closeSheet;
+  $("#note-save", body).onclick = () => {
+    const text = ta.value.trim();
+    if (!text) {
+      if (g) deleteRangeNote(g);
+      return done("toast.noteDeleted");
+    }
+    const id = g || addPieces(parts, {});
+    state.rnotes[id] = { text, t: Date.now() };
+    done("toast.noteSaved");
+  };
+  const del = $("#note-del", body);
+  if (del) del.onclick = () => {
+    deleteRangeNote(g);
+    done("toast.noteDeleted");
+  };
+}
+
+function deleteRangeNote(g) {
+  delete state.rnotes[g];
+  for (const [id, r] of Object.entries(state.ranges)) {
+    if (r.g === g && !r.hl && !r.ul) delete state.ranges[id];
+  }
+}
+
+/* ---------- Notes, bookmarks and history pages ---------- */
+
+let notesTab = "notes";
+
+/** Shared taps on list pages: open a passage, or delete a row. */
+function listClicks(body, redraw) {
   body.onclick = (e) => {
     const del = e.target.closest("[data-del]");
     if (del) {
@@ -1048,19 +1352,58 @@ function openLibrary() {
       const [kind, k] = del.dataset.del.split("|");
       if (kind === "bm") delete state.bookmarks[k];
       if (kind === "note" && confirm(t("confirm.deleteNote"))) delete state.notes[k];
+      if (kind === "rnote" && confirm(t("confirm.deleteNote"))) deleteRangeNote(k);
       if (kind === "mark") delete state.marks[k];
-      persist("bookmarks", "notes", "marks");
-      draw();
+      if (kind === "rmark") {
+        for (const p of groupPieces(k)) {
+          delete state.ranges[p.id].hl;
+          delete state.ranges[p.id].ul;
+          if (!state.rnotes[k]) delete state.ranges[p.id];
+        }
+      }
+      persist("bookmarks", "notes", "marks", "ranges", "rnotes");
+      redraw();
       if (rendered) render({ scrollTo: topVisibleVerse() || activeTab().v });
       return;
     }
     const open = e.target.closest("[data-open]");
     if (open) {
       const { b, c, v } = parseKey(open.dataset.open);
-      closeSheet();
+      showReader();
       go(b, c, v, { flash: true });
     }
   };
+}
+
+function openNotesPage() {
+  const body = openPage("notes", t("tab.notes"), "");
+  const draw = () => {
+    body.innerHTML = `<div class="seg full" id="notes-seg" style="margin-bottom:6px">
+        ${["notes", "marks"].map((id) => `<button data-tab="${id}" class="${notesTab === id ? "on" : ""}">${t("lib." + id)}</button>`).join("")}
+      </div><div id="lib-list"></div>`;
+    $("#notes-seg", body).onclick = (e) => {
+      const el = e.target.closest("[data-tab]");
+      if (!el) return;
+      notesTab = el.dataset.tab;
+      draw();
+    };
+    (notesTab === "notes" ? drawNotes : drawMarks)($("#lib-list", body));
+  };
+  listClicks(body, draw);
+  draw();
+}
+
+function openBookmarksPage() {
+  const body = openPage("bookmarks", t("tab.bookmarks"), `<div id="lib-list"></div>`);
+  const draw = () => drawBookmarks($("#lib-list", body));
+  listClicks(body, draw);
+  draw();
+}
+
+function openHistoryPage() {
+  const body = openPage("history", t("tab.history"), `<div id="lib-list"></div>`);
+  const draw = () => drawHistory($("#lib-list", body));
+  listClicks(body, draw);
   draw();
 }
 
@@ -1096,30 +1439,40 @@ function drawBookmarks(list) {
 }
 
 function drawNotes(list) {
-  const keys = sortedKeys(state.notes, (n) => n.t);
-  if (!keys.length) return (list.innerHTML = emptyState(t("empty.notes")));
-  list.innerHTML = `<ul class="list">${keys.map((k) => {
-    const { b, c, v } = parseKey(k);
-    const n = state.notes[k];
-    return `<li><div class="row"><button class="main" data-open="${k}" style="text-align:left">
-        <div class="ref">${esc(refText(b, c, v))} <span class="hint">· ${fmtDate(n.t)}</span></div>
+  const items = [
+    ...Object.entries(state.notes).map(([k, n]) => ({ k, del: `note|${k}`, ...n, ...parseKey(k) })),
+    ...Object.entries(state.rnotes).map(([g, n]) => {
+      const first = groupPieces(g)[0];
+      return first && { k: vkey(first.b, first.c, first.v), del: `rnote|${g}`, quote: groupQuote(g), ...n, b: first.b, c: first.c, v: first.v };
+    }).filter(Boolean),
+  ].sort((a, z) => z.t - a.t);
+  if (!items.length) return (list.innerHTML = emptyState(t("empty.notes")));
+  list.innerHTML = `<ul class="list">${items.map((n) => `<li><div class="row"><button class="main" data-open="${n.k}" style="text-align:left">
+        <div class="ref">${esc(refText(n.b, n.c, n.v))} <span class="hint">· ${fmtDate(n.t)}</span></div>
+        ${n.quote ? `<div class="sub quote">${esc(n.quote)}</div>` : ""}
         <div class="sub note">${esc(n.text)}</div></button>
-        <button class="del" data-del="note|${k}" aria-label="${t("delete")}">${ICON.trash}</button></div></li>`;
-  }).join("")}</ul>`;
+        <button class="del" data-del="${n.del}" aria-label="${t("delete")}">${ICON.trash}</button></div></li>`).join("")}</ul>`;
 }
 
 function drawMarks(list) {
-  const keys = sortedKeys(state.marks, (m) => m.t || 0);
-  if (!keys.length) return (list.innerHTML = emptyState(t("empty.marks")));
-  list.innerHTML = `<ul class="list">${keys.map((k) => {
-    const { b, c, v } = parseKey(k);
-    const m = state.marks[k];
+  const groups = new Map();
+  for (const r of Object.values(state.ranges)) {
+    if (!r.hl && !r.ul) continue;
+    if (!groups.has(r.g)) groups.set(r.g, r);
+  }
+  const items = [
+    ...Object.entries(state.marks).map(([k, m]) => ({ k, del: `mark|${k}`, hl: m.hl, ul: m.ul, t: m.t || 0, snippet: true, ...parseKey(k) })),
+    ...[...groups].map(([g, r]) => ({ k: vkey(r.b, r.c, r.v), del: `rmark|${g}`, hl: r.hl, ul: r.ul, t: r.t, quote: groupQuote(g), b: r.b, c: r.c, v: r.v })),
+  ].sort((a, z) => z.t - a.t);
+  if (!items.length) return (list.innerHTML = emptyState(t("empty.marks")));
+  list.innerHTML = `<ul class="list">${items.map((m) => {
     const color = m.hl || m.ul;
     const style = m.hl ? `background:var(--hl-${m.hl})` : `border:2px solid var(--ul-${m.ul})`;
     return `<li><div class="row"><span class="dot" style="${style}" title="${color ? t("color." + color) : ""}"></span>
-        <button class="main" data-open="${k}" style="text-align:left">
-        <div class="ref">${esc(refText(b, c, v))}${m.ul ? ` <span class="hint">· ${t("lib.underline")}</span>` : ""}</div><div class="sub" data-snippet="${k}"></div></button>
-        <button class="del" data-del="mark|${k}" aria-label="${t("delete")}">${ICON.trash}</button></div></li>`;
+        <button class="main" data-open="${m.k}" style="text-align:left">
+        <div class="ref">${esc(refText(m.b, m.c, m.v))}${m.ul && !m.hl ? ` <span class="hint">· ${t("lib.underline")}</span>` : ""}</div>
+        ${m.quote ? `<div class="sub quote">${esc(m.quote)}</div>` : `<div class="sub" data-snippet="${m.k}"></div>`}</button>
+        <button class="del" data-del="${m.del}" aria-label="${t("delete")}">${ICON.trash}</button></div></li>`;
   }).join("")}</ul>`;
   fillSnippets(list);
 }
@@ -1164,12 +1517,10 @@ const pad = (n) => String(n).padStart(2, "0");
 const fmtTime = (ts) => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const fmtDate = (ts) => { const d = new Date(ts); return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${fmtTime(ts)}`; };
 
-$("#btn-library").onclick = openLibrary;
 
 /* ---------- Book introduction (导读) ---------- */
 
-async function openIntro() {
-  const { b } = activeTab();
+async function openIntro(b = activeTab().b) {
   const book = BOOKS[b];
   const intro = intros()[b];
   const [kc, kv] = intro.key.split(":").map(Number);
@@ -1207,7 +1558,7 @@ async function openIntro() {
     if (!el) return;
     const [c, v] = el.dataset.go.split(":").map(Number);
     closeSheet();
-    go(b, c, v, { flash: v > 1 });
+    goFromPage(b, c, v > 1 ? v : null);
   };
   const enId = englishVersion();
   const [zh, en] = await Promise.all([
@@ -1218,7 +1569,7 @@ async function openIntro() {
   if ($("#kv-en", body)) $("#kv-en", body).textContent = en?.[kv - 1] || "";
 }
 
-$("#btn-intro").onclick = openIntro;
+$("#btn-intro").onclick = () => openIntro();
 
 /* ---------- Settings ---------- */
 
@@ -1226,6 +1577,7 @@ function applySettings() {
   const s = state.settings;
   document.body.classList.toggle("text-zh", s.textMode === "zh");
   document.body.classList.toggle("text-en", s.textMode === "en");
+  if (typeof updateVersionLabels === "function") updateVersionLabels();
   document.documentElement.style.setProperty("--fs", s.fontSize + "px");
   if (s.theme === "system") delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = s.theme;
@@ -1245,7 +1597,7 @@ function openSettings(focusImport = false) {
   const imported = versions.filter((v) => !BUILTIN.some((b) => b.id === v.id));
   const seg = (id, key, options) =>
     `<div class="seg" id="${id}">${options.map(([v, label]) => `<button data-v="${v}" class="${String(s[key]) === String(v) ? "on" : ""}">${label}</button>`).join("")}</div>`;
-  const body = openSheet(t("set.title"), `
+  const body = openPage("settings", t("set.title"), `
     <div class="set-title">界面语言 · LANGUAGE</div>
     <div class="set-group"><div class="set-row">
       <div class="seg full" id="ui-lang" style="flex:1">
@@ -1308,7 +1660,7 @@ function openSettings(focusImport = false) {
       ${BUILTIN.filter((v) => v.notice).map((v) => esc(v.notice) + "<br>").join("")}
       ${t("tip")}</p>
     <input type="file" id="file-version" accept=".json,application/json" hidden>
-    <input type="file" id="file-backup" accept=".json,application/json" hidden>`, { tall: true });
+    <input type="file" id="file-backup" accept=".json,application/json" hidden>`);
 
   $("#ui-lang", body).onclick = (e) => {
     const el = e.target.closest("[data-v]");
@@ -1320,10 +1672,11 @@ function openSettings(focusImport = false) {
     renderColors();
     updateActionbar();
     updatePlayer();
+    updateListenButton();
     render({ scrollTo: topVisibleVerse() || activeTab().v });
-    const scroll = $("#sheet-body").scrollTop;
+    const scroll = $("#page-body").scrollTop;
     openSettings();
-    $("#sheet-body").scrollTop = scroll;
+    $("#page-body").scrollTop = scroll;
   };
 
   const fs = $("#fs", body);
@@ -1432,7 +1785,6 @@ function openSettings(focusImport = false) {
   if (focusImport) setTimeout(() => $("#import-btn", body).scrollIntoView({ block: "center" }), 50);
 }
 
-$("#btn-settings").onclick = () => openSettings();
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applySettings);
 
 /* ============================================================
@@ -1472,7 +1824,7 @@ function showWelcome() {
       s.onboarded = true;
       persist("settings");
       el.hidden = true;
-      openNavigator({ title: t("nav.start") });
+      openBooks({ newTab: false, title: t("nav.start") });
       return;
     }
     persist("settings");
@@ -1496,6 +1848,8 @@ function showWelcome() {
   applyI18n();
   renderColors();
   applySettings();
+  updateListenButton();
+  updateNav();
   await loadImported();
   if (!hasVersion(state.settings.zh)) state.settings.zh = "cuv";
   // Allow deep links like #约3:16 or #John3:16
