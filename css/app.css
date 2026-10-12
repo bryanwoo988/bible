@@ -659,3 +659,16 @@ body.page-open .pager, body.page-open .quickbar, body.page-open .actionbar { dis
 .mark-colors [data-color="blue"] { background: #50a0ff; }
 .mark-colors [data-color="pink"] { background: #ff6eaa; }
 .mark-colors [data-color="orange"] { background: #ff9632; }
+
+/* Pages scroll with the window (not an inner scroll box), header sticks on top. */
+.page {
+  position: relative; inset: auto; z-index: 1; display: block; min-height: 100vh;
+  padding-bottom: calc(var(--nav-h) + var(--safe-b) + 24px);
+}
+.page-head { position: sticky; top: 0; z-index: 5; }
+.page-body { overflow: visible; flex: none; padding-top: 12px; }
+/* While a sheet is open the page behind it must not scroll. */
+body.sheet-open { overflow: hidden; }
+.sheet-body { min-height: 0; flex: 1 1 auto; }
+/* The read-aloud player stays on screen over pages; leave room for it. */
+body.page-open.playing .page { padding-bottom: calc(var(--nav-h) + var(--safe-b) + 200px); }

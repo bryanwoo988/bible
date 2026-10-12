@@ -98,14 +98,24 @@ async function render({ scrollTo, flash } = {}) {
   chapterEl.innerHTML = html.join("");
   rendered = { b, c };
 
-  suppressScrollSave = true;
   const target = scrollTo ?? tab.v ?? 1;
-  const el = target > 1 ? chapterEl.querySelector(`.v[data-v="${target}"]`) : null;
+  if (document.body.classList.contains("page-open")) {
+    // The window is scrolling a page right now; position the reader when it returns.
+    pendingReaderScroll = target;
+  } else scrollReaderTo(target, flash);
+  if (recordingHistory) recordHistory(b, c, target || 1);
+}
+
+let pendingReaderScroll = null;
+let recordingHistory = true; // off until a brand-new user finishes the welcome screen
+
+function scrollReaderTo(v, flash = false) {
+  suppressScrollSave = true;
+  const el = v > 1 ? chapterEl.querySelector(`.v[data-v="${v}"]`) : null;
   if (el) el.scrollIntoView({ block: "start" });
   else window.scrollTo(0, 0);
   if (flash && el) el.classList.add("flash");
   requestAnimationFrame(() => (suppressScrollSave = false));
-  recordHistory(b, c, target || 1);
 }
 
 function verseHTML(b, c, v, zh, en) {
@@ -154,8 +164,9 @@ function markedHTML(b, c, v, lang, text) {
     const on = list.filter((r) => r.s <= from && r.e >= to);
     if (!on.length) out += piece;
     else {
-      const hl = on.findLast((r) => r.hl)?.hl;
-      const ul = on.findLast((r) => r.ul)?.ul;
+      const last = (key) => on.reduce((found, r) => r[key] || found, undefined);
+      const hl = last("hl");
+      const ul = last("ul");
       const noted = on.some((r) => state.rnotes[r.g]);
       const top = on[on.length - 1];
       out += `<span class="r" data-g="${top.g}"${hl ? ` data-rh="${hl}"` : ""}${ul ? ` data-ru="${ul}"` : ""}${noted ? " data-rn" : ""}>${piece}</span>`;
@@ -280,8 +291,10 @@ chapterEl.addEventListener("click", (e) => {
   if (noteBtn) return openNote(Number(noteBtn.dataset.note));
   const verse = e.target.closest(".v");
   if (!verse) return;
-  // A tap while text is selected just dismisses the selection.
-  if (textPieces.length || !getSelection().isCollapsed) {
+  // The click that ends a drag-selection (mouse) keeps the selection; a tap
+  // elsewhere while words are selected just dismisses them.
+  if (!getSelection().isCollapsed) return;
+  if (textPieces.length) {
     clearSelection();
     return;
   }
@@ -387,7 +400,7 @@ window.addEventListener("scroll", () => {
     if (!v || !rendered || rendered.b !== tab.b || rendered.c !== tab.c) return;
     tab.v = v;
     persist("tabs");
-    recordHistory(tab.b, tab.c, v);
+    if (recordingHistory) recordHistory(tab.b, tab.c, v);
   }, 400);
 }, { passive: true });
 
@@ -518,6 +531,7 @@ $("#tabstrip").addEventListener("click", (e) => {
     const i = Number(close.dataset.close);
     const tab = state.tabs[i];
     if (!confirm(t("confirm.closeTab", { ref: refText(tab.b, tab.c, tab.v > 1 ? tab.v : null) }))) return;
+    ttsStop();
     state.tabs.splice(i, 1);
     if (state.activeTab >= i && state.activeTab > 0) state.activeTab--;
     persist("tabs", "activeTab");
@@ -811,6 +825,10 @@ async function ttsSpeak() {
     tts.v = 1;
     tts.part = 0;
     await go(next[0], next[1], 1, { fromTts: true });
+    if (!chapterEl.querySelector(".v")) {
+      ttsStop();
+      return toast(t("loadError"));
+    }
     return ttsSpeak();
   }
   if (tts.part >= parts.length) {
@@ -996,8 +1014,8 @@ $("#pl-speed").onclick = () => {
 };
 synth?.getVoices();
 synth?.addEventListener?.("voiceschanged", () => {
-  const body = $("#sheet-body");
-  if (!sheet.hidden && $("#voice-zh", body)) fillVoiceSelects(body);
+  const body = $("#page-body");
+  if (view === "settings" && $("#voice-zh", body)) fillVoiceSelects(body);
 });
 
 function fillVoiceSelects(body) {
@@ -1039,6 +1057,7 @@ function openSheet(title, html, { tall = false, onClose = null } = {}) {
   $("#sheet-body").scrollTop = 0;
   sheet.classList.toggle("tall", tall);
   sheet.hidden = false;
+  document.body.classList.add("sheet-open");
   scrim.hidden = false;
   onSheetClose = onClose;
   return $("#sheet-body");
@@ -1046,6 +1065,7 @@ function openSheet(title, html, { tall = false, onClose = null } = {}) {
 
 function closeSheet() {
   sheet.hidden = true;
+  document.body.classList.remove("sheet-open");
   scrim.hidden = true;
   const cb = onSheetClose;
   onSheetClose = null;
@@ -1080,6 +1100,7 @@ const CHEVRON = '<svg viewBox="0 0 24 24" class="chev-r"><path d="M9 6l6 6-6 6"/
 function openPage(name, title, html, { back = null, actions = "" } = {}) {
   view = name;
   if (NAV_OF[name] === "bible") bibleView = name;
+  else pendingNewTab = false;
   if (!sheet.hidden) closeSheet();
   clearSelection();
   hideQuick();
@@ -1089,17 +1110,18 @@ function openPage(name, title, html, { back = null, actions = "" } = {}) {
   backBtn.onclick = back?.onClick || null;
   $("#page-back-label").textContent = back?.label || "";
   $("#page-actions").innerHTML = actions;
-  const body = $("#page-body");
-  body.onclick = null;
-  body.innerHTML = html;
-  body.scrollTop = 0;
   if (page.hidden) {
-    // Hide the reader underneath so iOS can't hand the scroll gesture to it.
+    // Pages scroll with the window (the most reliable scrolling on iOS), so the
+    // reader is hidden meanwhile; remember where the reader was.
     readerScrollY = window.scrollY;
     suppressScrollSave = true;
     document.body.classList.add("page-open");
   }
+  const body = $("#page-body");
+  body.onclick = null;
+  body.innerHTML = html;
   page.hidden = false;
+  window.scrollTo(0, 0);
   updateNav();
   return body;
 }
@@ -1108,11 +1130,17 @@ let readerScrollY = 0;
 
 function showReader() {
   view = bibleView = "reader";
+  pendingNewTab = false;
   if (!page.hidden) {
     page.hidden = true;
     document.body.classList.remove("page-open");
-    window.scrollTo(0, readerScrollY);
-    requestAnimationFrame(() => (suppressScrollSave = false));
+    if (pendingReaderScroll !== null) {
+      scrollReaderTo(pendingReaderScroll);
+      pendingReaderScroll = null;
+    } else {
+      window.scrollTo(0, readerScrollY);
+      requestAnimationFrame(() => (suppressScrollSave = false));
+    }
   }
   updateNav();
 }
@@ -1129,7 +1157,7 @@ $("#bottomnav").onclick = (e) => {
     case "bible":
       // Like iOS tab bars: tapping the active tab goes back to its first screen.
       if (view === "reader" || view === "chapters") openBooks();
-      else if (view === "books") $("#page-body").scrollTop = 0;
+      else if (view === "books") window.scrollTo({ top: 0, behavior: "smooth" });
       else if (bibleView === "reader") showReader();
       else openBooks();
       break;
@@ -1214,9 +1242,11 @@ function openBooks({ newTab = pendingNewTab, title = null } = {}) {
     }
     if (el.dataset.test) {
       booksTestament = el.dataset.test;
-      const top = $(".testament-tabs", body).offsetTop - 8;
+      // Keep the testament tabs in view instead of jumping to the top.
+      const headH = $(".page-head").offsetHeight;
+      const top = $(".testament-tabs", body).getBoundingClientRect().top + window.scrollY - headH - 8;
       draw();
-      body.scrollTop = Math.min(body.scrollTop, top);
+      window.scrollTo(0, Math.min(window.scrollY, top));
       return;
     }
     if (el.dataset.b) {
@@ -1788,9 +1818,9 @@ function openSettings(focusImport = false) {
     updatePlayer();
     updateListenButton();
     render({ scrollTo: topVisibleVerse() || activeTab().v });
-    const scroll = $("#page-body").scrollTop;
+    const scroll = window.scrollY;
     openSettings();
-    $("#page-body").scrollTop = scroll;
+    window.scrollTo(0, scroll);
   };
 
   const fs = $("#fs", body);
@@ -1930,14 +1960,17 @@ function showWelcome() {
       setUiLang(s.ui);
       applyI18n();
       renderColors();
+      updateListenButton();
       render();
     } else if (btn.dataset.theme) {
       s.theme = btn.dataset.theme;
       applySettings();
     } else if (btn.id === "welcome-go") {
       s.onboarded = true;
+      recordingHistory = true;
       persist("settings");
       el.hidden = true;
+      document.body.classList.remove("page-open");
       openBooks({ newTab: false, title: t("nav.start") });
       return;
     }
@@ -1946,16 +1979,28 @@ function showWelcome() {
   };
   draw();
   el.hidden = false;
+  // Nothing behind the welcome screen should be scrollable (iOS scroll capture).
+  document.body.classList.add("page-open");
 }
 
 /* ============================================================
    Start
    ============================================================ */
 
+function refFromHash() {
+  try {
+    const hash = decodeURIComponent(location.hash.slice(1));
+    return hash ? parseRef(hash) : null;
+  } catch {
+    return null;
+  }
+}
+
 (async function start() {
   // Show the welcome screen to brand-new users only (no reading history yet).
   const firstRun = !state.settings.onboarded && !state.history.length;
   if (!firstRun) state.settings.onboarded = true;
+  else recordingHistory = false;
   if (!state.settings.ui) state.settings.ui = "en";
   persist("settings");
   setUiLang(state.settings.ui);
@@ -1967,19 +2012,16 @@ function showWelcome() {
   await loadImported();
   if (!hasVersion(state.settings.zh)) state.settings.zh = "cuv";
   // Allow deep links like #约3:16 or #John3:16
-  const hash = decodeURIComponent(location.hash.slice(1));
-  const r = hash && parseRef(hash);
+  const r = refFromHash();
   if (r) Object.assign(activeTab(), { b: r.book, c: r.chapter, v: r.verse || 1 });
   await render({ flash: !!r?.verse });
-  if (firstRun && !r) {
-    // The default page wasn't chosen by the user, so keep it out of history.
-    state.history = [];
-    persist("history");
-    showWelcome();
-  }
+  if (firstRun && !r) showWelcome();
+  else recordingHistory = true;
   window.addEventListener("hashchange", () => {
-    const r = parseRef(decodeURIComponent(location.hash.slice(1)));
-    if (r) go(r.book, r.chapter, r.verse, { flash: !!r.verse });
+    const r = refFromHash();
+    if (!r) return;
+    showReader();
+    go(r.book, r.chapter, r.verse, { flash: !!r.verse });
   });
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch((e) => console.warn("SW", e));
