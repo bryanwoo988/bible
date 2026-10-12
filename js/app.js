@@ -157,7 +157,8 @@ function markedHTML(b, c, v, lang, text) {
       const hl = on.findLast((r) => r.hl)?.hl;
       const ul = on.findLast((r) => r.ul)?.ul;
       const noted = on.some((r) => state.rnotes[r.g]);
-      out += `<span class="r"${hl ? ` data-rh="${hl}"` : ""}${ul ? ` data-ru="${ul}"` : ""}${noted ? " data-rn" : ""}>${piece}</span>`;
+      const top = on[on.length - 1];
+      out += `<span class="r" data-g="${top.g}"${hl ? ` data-rh="${hl}"` : ""}${ul ? ` data-ru="${ul}"` : ""}${noted ? " data-rn" : ""}>${piece}</span>`;
     }
     for (const r of list) {
       if (r.e === to && r.last && state.rnotes[r.g]) out += `<button class="rnote" data-rnote="${r.g}" aria-label="${t("act.note")}">${ICON.note}</button>`;
@@ -235,6 +236,7 @@ function rerenderVerse(v) {
   tmp.innerHTML = verseHTML(b, c, v, zhText, enText);
   const fresh = tmp.firstElementChild;
   if (selection.has(v)) fresh.classList.add("sel");
+  for (const cls of ["reading", "focus"]) if (old.classList.contains(cls)) fresh.classList.add(cls);
   old.replaceWith(fresh);
 }
 
@@ -283,6 +285,9 @@ chapterEl.addEventListener("click", (e) => {
     clearSelection();
     return;
   }
+  // Tapping marked words opens their menu (add a note, change colour, remove).
+  const marked = e.target.closest(".r[data-g]");
+  if (marked && !selection.size) return openMarkMenu(marked.dataset.g);
   const v = Number(verse.dataset.v);
   if (selection.size || !state.settings.listen) toggleSelect(v); // marking: tap adds/removes verses
   else if (tts.on) {
@@ -374,7 +379,7 @@ document.addEventListener("keydown", (e) => {
 // Remember the top visible verse for the current tab and the reading history.
 let scrollTimer;
 window.addEventListener("scroll", () => {
-  if (suppressScrollSave) return;
+  if (suppressScrollSave || document.body.classList.contains("page-open")) return;
   clearTimeout(scrollTimer);
   scrollTimer = setTimeout(() => {
     const v = topVisibleVerse();
@@ -867,7 +872,8 @@ function markReading() {
   if (!el) return;
   el.classList.add("reading");
   suppressScrollSave = true;
-  el.scrollIntoView({ block: "center", behavior: "smooth" });
+  const busy = textPieces.length || selection.size || !sheet.hidden || !page.hidden;
+  if (!busy) el.scrollIntoView({ block: "center", behavior: "smooth" });
   setTimeout(() => (suppressScrollSave = false), 800);
   const tab = activeTab();
   tab.v = tts.v;
@@ -1087,14 +1093,27 @@ function openPage(name, title, html, { back = null, actions = "" } = {}) {
   body.onclick = null;
   body.innerHTML = html;
   body.scrollTop = 0;
+  if (page.hidden) {
+    // Hide the reader underneath so iOS can't hand the scroll gesture to it.
+    readerScrollY = window.scrollY;
+    suppressScrollSave = true;
+    document.body.classList.add("page-open");
+  }
   page.hidden = false;
   updateNav();
   return body;
 }
 
+let readerScrollY = 0;
+
 function showReader() {
   view = bibleView = "reader";
-  page.hidden = true;
+  if (!page.hidden) {
+    page.hidden = true;
+    document.body.classList.remove("page-open");
+    window.scrollTo(0, readerScrollY);
+    requestAnimationFrame(() => (suppressScrollSave = false));
+  }
   updateNav();
 }
 
@@ -1371,6 +1390,59 @@ function openRangeNote({ g = null, pieces = null }) {
   if (del) del.onclick = () => {
     deleteRangeNote(g);
     done("toast.noteDeleted");
+  };
+}
+
+/** Menu for words that are already marked: note, colour, copy, remove. */
+function openMarkMenu(g) {
+  const parts = groupPieces(g);
+  if (!parts.length) return;
+  hideQuick();
+  const first = parts[0];
+  const note = state.rnotes[g];
+  const cur = parts[0].hl || parts[0].ul;
+  const mode = parts[0].hl ? "hl" : parts[0].ul ? "ul" : "hl";
+  const body = openSheet(t("mark.title"), `
+    <div class="note-ref">${esc(refText(first.b, first.c, first.v))} · ${esc(otherRef(first.b, first.c, first.v))}</div>
+    <div class="note-quote">${esc(groupQuote(g))}</div>
+    ${note ? `<div class="note-preview" style="margin:0 0 14px">${esc(note.text)}</div>` : ""}
+    <div class="mark-colors colors">${COLORS.map((c) => `<button data-color="${c}" class="${c === cur ? "on" : ""}" aria-label="${t("color." + c)}"></button>`).join("")}</div>
+    <div class="mark-actions">
+      <button class="btn primary" data-do="note">${t(note ? "mark.editNote" : "mark.addNote")}</button>
+      <button class="btn" data-do="copy">${t("act.copy")}</button>
+      <button class="btn danger" data-do="remove">${t("mark.remove")}</button>
+    </div>`);
+  const touched = () => refreshPieces(parts);
+  body.onclick = async (e) => {
+    const color = e.target.closest("[data-color]")?.dataset.color;
+    if (color) {
+      for (const p of parts) state.ranges[p.id][mode] = color;
+      persist("ranges");
+      closeSheet();
+      return touched();
+    }
+    switch (e.target.closest("[data-do]")?.dataset.do) {
+      case "note":
+        return openRangeNote({ g });
+      case "copy":
+        try {
+          await navigator.clipboard.writeText(`${groupQuote(g)}\n— ${refText(first.b, first.c, first.v)}`);
+          toast(t("toast.copied"));
+        } catch {
+          toast(t("toast.copyFailed"));
+        }
+        return closeSheet();
+      case "remove":
+        for (const p of parts) {
+          delete state.ranges[p.id].hl;
+          delete state.ranges[p.id].ul;
+          if (!state.rnotes[g]) delete state.ranges[p.id];
+        }
+        persist("ranges");
+        closeSheet();
+        touched();
+        toast(t("toast.cleared"));
+    }
   };
 }
 

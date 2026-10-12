@@ -640,3 +640,22 @@ body.playing .reader { padding-bottom: calc(var(--nav-h) + 240px + var(--safe-b)
   .topbar .ref-btn { font-size: 18px; padding: 0 2px; }
   .topbar .icon-btn.labeled { width: 44px; }
 }
+
+/* Full-screen pages: hide the reader underneath (iOS would otherwise scroll it) */
+body.page-open .reader, body.page-open .topbar, body.page-open .tabstrip,
+body.page-open .pager, body.page-open .quickbar, body.page-open .actionbar { display: none !important; }
+.page-body, .sheet-body { overscroll-behavior: contain; }
+
+/* Menu for already-marked words */
+.r[data-g] { cursor: pointer; }
+.mark-colors { justify-content: center; gap: 16px; margin: 6px 0 18px; }
+.mark-colors button { width: 40px; height: 40px; }
+.mark-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.mark-actions .btn { flex: 1; min-height: 46px; font-size: 16px; }
+.mark-colors button { border-radius: 50%; border: 3px solid transparent; }
+.mark-colors button.on { border-color: var(--text); }
+.mark-colors [data-color="yellow"] { background: #ffd500; }
+.mark-colors [data-color="green"] { background: #50c878; }
+.mark-colors [data-color="blue"] { background: #50a0ff; }
+.mark-colors [data-color="pink"] { background: #ff6eaa; }
+.mark-colors [data-color="orange"] { background: #ff9632; }

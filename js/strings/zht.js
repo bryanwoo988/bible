@@ -183,4 +183,8 @@ export default {
   "nav.clearRecent": "清除",
   "tts.noZhTitle": "讀不出中文",
   "tts.noZhBody": "這部手機好像沒有安裝中文語音，所以只讀出了英文。<br><br><b>Android：</b>設定 → 文字轉語音輸出（或「輔助功能 → 文字轉語音」）→ 首選引擎選「Google 文字轉語音」→ 齒輪 → 安裝語音資料 → 中文（中國大陸），下載完成後回來再按朗讀。<br><br><b>iPhone：</b>設定 → 輔助功能 → 朗讀內容 → 聲音 → 中文。",
+  "mark.title": "畫線",
+  "mark.addNote": "寫筆記",
+  "mark.editNote": "編輯筆記",
+  "mark.remove": "移除畫線",
 };

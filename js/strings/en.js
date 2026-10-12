@@ -183,4 +183,8 @@ export default {
   "nav.clearRecent": "Clear",
   "tts.noZhTitle": "Chinese can’t be read aloud",
   "tts.noZhBody": "This phone doesn’t seem to have a Chinese voice installed, so only the English was read.<br><br><b>Android:</b> Settings → Text-to-speech output (or Accessibility → Text-to-speech) → set the preferred engine to “Google Text-to-speech” → gear icon → Install voice data → Chinese (China). Then come back and tap Listen again.<br><br><b>iPhone:</b> Settings → Accessibility → Spoken Content → Voices → Chinese.",
+  "mark.title": "Highlight",
+  "mark.addNote": "Add note",
+  "mark.editNote": "Edit note",
+  "mark.remove": "Remove",
 };

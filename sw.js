@@ -1,6 +1,6 @@
 // Offline support: app shell is precached; Bible text is cached as it is read
 // (and prefetched in the background by the app).
-const VERSION = "v9";
+const VERSION = "v10";
 const SHELL = `shell-${VERSION}`;
 const DATA = "data-v1"; // bump only when the text files change
 
@@ -57,8 +57,10 @@ self.addEventListener("fetch", (e) => {
   }
 
   // App shell: network first so updates show up, fall back to cache offline.
+  // "no-cache" revalidates with the server so a new app.js is never mixed with
+  // stale strings or styles from the browser's HTTP cache.
   e.respondWith(
-    fetch(e.request)
+    fetch(url.href, { cache: "no-cache", credentials: "same-origin" })
       .then((res) => {
         if (res.ok) caches.open(SHELL).then((c) => c.put(e.request, res.clone()));
         return res;
