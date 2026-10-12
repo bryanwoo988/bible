@@ -65,6 +65,7 @@ async function render({ scrollTo, flash } = {}) {
   $("#btn-next").disabled = b === 65 && c === book.chapters;
   renderTabs();
   clearSelection();
+  hideQuick();
 
   const enId = englishVersion();
   renderBanner(enId);
@@ -190,7 +191,90 @@ chapterEl.addEventListener("click", (e) => {
   const noteBtn = e.target.closest("[data-note]");
   if (noteBtn) return openNote(Number(noteBtn.dataset.note));
   const verse = e.target.closest(".v");
-  if (verse) toggleSelect(Number(verse.dataset.v));
+  if (!verse) return;
+  if (suppressClick) {
+    suppressClick = false; // the click that ends a long-press
+    return;
+  }
+  const v = Number(verse.dataset.v);
+  if (selection.size) toggleSelect(v); // marking mode: tap adds/removes verses
+  else if (tts.on) {
+    // While listening, tapping a verse continues reading from there.
+    ttsJump(0, v);
+    if (!tts.playing) ttsResume();
+  } else if (focusV === v) hideQuick();
+  else showQuick(v);
+});
+
+/* ---------- Tap = listen; long-press = marking tools ---------- */
+
+const quickbar = $("#quickbar");
+let focusV = null;
+let suppressClick = false;
+let press = null;
+
+function showQuick(v) {
+  hideQuick();
+  focusV = v;
+  chapterEl.querySelector(`.v[data-v="${v}"]`)?.classList.add("focus");
+  $("#qb-label").textContent = t("qb.listen", { v });
+  quickbar.hidden = false;
+  document.body.classList.add("quick");
+}
+
+function hideQuick() {
+  focusV = null;
+  $$(".v.focus", chapterEl).forEach((el) => el.classList.remove("focus"));
+  quickbar.hidden = true;
+  document.body.classList.remove("quick");
+}
+
+function startMarking(v) {
+  hideQuick();
+  if (!selection.has(v)) toggleSelect(v);
+}
+
+$("#qb-play").onclick = () => {
+  const v = focusV;
+  hideQuick();
+  ttsStart(v);
+};
+$("#qb-mark").onclick = () => startMarking(focusV);
+$("#qb-close").onclick = hideQuick;
+
+chapterEl.addEventListener("pointerdown", (e) => {
+  const verse = e.target.closest(".v");
+  if (!verse || e.target.closest("button") || e.button > 0) return;
+  const v = Number(verse.dataset.v);
+  press = {
+    x: e.clientX, y: e.clientY,
+    timer: setTimeout(() => {
+      press = null;
+      suppressClick = true;
+      setTimeout(() => (suppressClick = false), 400);
+      navigator.vibrate?.(15);
+      startMarking(v);
+    }, 500),
+  };
+});
+chapterEl.addEventListener("pointermove", (e) => {
+  if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) {
+    clearTimeout(press.timer);
+    press = null;
+  }
+});
+for (const type of ["pointerup", "pointercancel"]) {
+  chapterEl.addEventListener(type, () => {
+    if (press) clearTimeout(press.timer);
+    press = null;
+  });
+}
+// Right-click on desktop works like a long-press.
+chapterEl.addEventListener("contextmenu", (e) => {
+  const verse = e.target.closest(".v");
+  if (!verse) return;
+  e.preventDefault();
+  startMarking(Number(verse.dataset.v));
 });
 
 // Swipe left/right to change chapter.
@@ -511,8 +595,8 @@ const PAUSE_ICON = '<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height=
 const NICE_VOICE = /Siri|Premium|Enhanced|Samantha|Tingting|Ting-Ting|Meijia|Mei-Jia|Sinji|Google|Microsoft/i;
 // Sound-effect voices bundled with macOS/iOS that make no sense for Scripture.
 const NOVELTY_VOICE = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Junior|Ralph|Fred|Kathy)\b/i;
-const MALE = /Li-?mu|Yu-?shu|Eddy|Grandpa|Reed|Rocko|Daniel|Alex|Aaron|Arthur|Gordon|Rishi|Tom|Oliver|Evan|Nathan|Kangkang|Yunxi|Yunyang|Yunjian|Danny|David|Mark|Guy|Eric|Ryan|Liam|Fred|Male/i;
-const FEMALE = /Tingting|Ting-Ting|Meijia|Mei-Jia|Sinji|Lili|Shanshan|Flo|Grandma|Sandy|Shelley|Samantha|Karen|Moira|Tessa|Veena|Fiona|Victoria|Allison|Ava|Susan|Zoe|Nicky|Kate|Serena|Xiaoxiao|Huihui|Yaoyao|Hanhan|Tracy|Zira|Aria|Jenny|Female|Google 普通话|Google 國語|Google 粵語|Google US English/i;
+const MALE = /Li-?mu|Aasing|Yunxia|Yunhao|Yunze|Yunfeng|Zhiwei|WanLung|YunJhe|Eddy|Grandpa|Reed|Rocko|Daniel|Alex|Aaron|Arthur|Gordon|Rishi|Tom|Oliver|Evan|Nathan|Kangkang|Yunxi|Yunyang|Yunjian|Danny|David|Mark|Guy|Eric|Ryan|Liam|Fred|Male/i;
+const FEMALE = /Yu-?shu|Lilian|HiuGaai|HiuMaan|HsiaoChen|HsiaoYu|Xiaoyi|Xiaohan|Xiaomo|Tingting|Ting-Ting|Meijia|Mei-Jia|Sinji|Lili|Shanshan|Flo|Grandma|Sandy|Shelley|Samantha|Karen|Moira|Tessa|Veena|Fiona|Victoria|Allison|Ava|Susan|Zoe|Nicky|Kate|Serena|Xiaoxiao|Huihui|Yaoyao|Hanhan|Tracy|Zira|Aria|Jenny|Female|Google 普通话|Google 國語|Google 粵語|Google US English/i;
 
 function voiceGender(v) {
   if (MALE.test(v.name) && !/Female/i.test(v.name)) return t("voice.male");
@@ -533,7 +617,17 @@ function voiceRegion(v) {
 /** Voices usable for a language, best first. */
 function listVoices(lang) {
   const re = lang === "en" ? /^en/i : /^(zh|cmn|yue)/i;
-  const all = synth ? synth.getVoices().filter((v) => re.test(v.lang) && !NOVELTY_VOICE.test(v.name)) : [];
+  const raw = synth ? synth.getVoices().filter((v) => re.test(v.lang) && !NOVELTY_VOICE.test(v.name)) : [];
+  // Some devices list the same voice several times (e.g. compact and enhanced
+  // copies); keep one per name + language, preferring the higher quality one.
+  const quality = (v) => (/premium/i.test(v.voiceURI + v.name) ? 2 : /enhanced/i.test(v.voiceURI + v.name) ? 1 : 0);
+  const byKey = new Map();
+  for (const v of raw) {
+    const key = `${v.name.replace(/\s*\(.*\)$/, "").toLowerCase()}|${v.lang.replace("_", "-").toLowerCase()}`;
+    const prev = byKey.get(key);
+    if (!prev || quality(v) > quality(prev)) byKey.set(key, v);
+  }
+  const all = [...byKey.values()];
   const rank = (v) => (NICE_VOICE.test(v.name) ? 0 : 1) + (lang === "en" ? (/^en[-_]US/i.test(v.lang) ? 0 : 2) : /^(zh[-_]HK|yue)/i.test(v.lang) ? 4 : /^zh[-_]TW/i.test(v.lang) ? 2 : 0);
   return all.sort((a, z) => rank(a) - rank(z) || a.name.localeCompare(z.name));
 }
@@ -721,11 +815,18 @@ function fillVoiceSelects(body) {
     const sel = $(id, body);
     const voices = listVoices(lang);
     const cur = state.settings[key];
-    sel.innerHTML = voices.length
-      ? `<option value="">${t("voice.auto")}</option>` + voices.map((v) => {
-          const tags = [voiceRegion(v), voiceGender(v)].filter(Boolean).join(" · ");
-          return `<option value="${esc(v.voiceURI)}" ${v.voiceURI === cur ? "selected" : ""}>${esc(v.name.replace(/\s*\(.*\)$/, ""))}${tags ? " · " + esc(tags) : ""}</option>`;
-        }).join("")
+    // Skip entries whose label would look identical to one already listed.
+    const seen = new Set();
+    const options = [];
+    for (const v of voices) {
+      const tags = [voiceRegion(v), voiceGender(v)].filter(Boolean).join(" · ");
+      const label = `${v.name.replace(/\s*\(.*\)$/, "")}${tags ? " · " + tags : ""}`;
+      if (seen.has(label) && v.voiceURI !== cur) continue;
+      seen.add(label);
+      options.push(`<option value="${esc(v.voiceURI)}" ${v.voiceURI === cur ? "selected" : ""}>${esc(label)}</option>`);
+    }
+    sel.innerHTML = options.length
+      ? `<option value="">${t("voice.auto")}</option>` + options.join("")
       : `<option value="">${t(lang === "en" ? "voice.noneEn" : "voice.noneZh")}</option>`;
   }
 }

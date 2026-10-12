@@ -88,6 +88,13 @@
     </div>
   </div>
 
+  <!-- Tap a verse: listen first; long-press for marking tools -->
+  <div class="quickbar" id="quickbar" hidden>
+    <button class="qb-play" id="qb-play"><svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg><span id="qb-label"></span></button>
+    <button class="qb-mark" id="qb-mark"><svg viewBox="0 0 24 24"><path d="M4 20h4l10-10-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg><span data-i18n="qb.mark">标记</span></button>
+    <button class="qb-close" id="qb-close" data-i18n-aria="close" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+
   <!-- Verse action bar -->
   <div class="actionbar" id="actionbar" hidden>
     <div class="ab-row">
