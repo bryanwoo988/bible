@@ -1025,6 +1025,7 @@ function openSettings(focusImport = false) {
       <div class="set-row"><div class="lbl">还原<small>从备份文件导入</small></div><button class="btn" id="backup-import">导入…</button></div>
     </div>
     <p class="about">经文：《和合本》(1919) 属公有领域。导入的译本只保存在你自己的设备上，不会上传。<br>
+      ${BUILTIN.filter((v) => v.notice).map((v) => esc(v.notice) + "<br>").join("")}
       小贴士：点顶部的经文名称快速跳转；按「新分页」可同时打开多处经文，在不同章节之间一键切换。</p>
     <input type="file" id="file-version" accept=".json,application/json" hidden>
     <input type="file" id="file-backup" accept=".json,application/json" hidden>`, { tall: true });

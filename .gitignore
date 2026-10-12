@@ -3,7 +3,6 @@ Chinese/
 English/
 *.pdf
 en_*.json
-data/niv/
 
 # Local tooling
 .DS_Store

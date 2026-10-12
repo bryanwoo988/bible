@@ -17,7 +17,8 @@ A simple bilingual (Chinese / English) Bible app that installs on a phone's home
 ## 译本 Versions
 
 - **Built in:** 和合本 (1919, public domain), simplified (`data/cuv`) and traditional (`data/cuvt`, converted with OpenCC).
-- **English:** import a JSON file under 设置 → 导入译本 (for example `en_niv.json` from [thiagobodruk/bible](https://github.com/thiagobodruk/bible)). Imported versions are stored only on that device and are not part of this repository, because modern translations such as NIV are under copyright.
+- **NIV** (`data/niv`, built with `tools/build_niv.py`): Scripture quotations taken from The Holy Bible, New International Version® NIV®. Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.™ Used by permission. All rights reserved worldwide.
+- **Other versions:** import a JSON file under 设置 → 导入译本. Imported versions are stored only on that device.
 
 ## Development
 

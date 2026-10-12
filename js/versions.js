@@ -5,6 +5,10 @@ import { idb } from "./store.js";
 export const BUILTIN = [
   { id: "cuv", name: "和合本（简体）", short: "和合本", lang: "zh" },
   { id: "cuvt", name: "和合本（繁體）", short: "和合本繁", lang: "zh" },
+  {
+    id: "niv", name: "NIV (New International Version)", short: "NIV", lang: "en",
+    notice: "Scripture quotations taken from The Holy Bible, New International Version® NIV®. Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.™ Used by permission. All rights reserved worldwide.",
+  },
 ];
 
 const imported = new Map(); // id -> { id, name, short, lang, books }
