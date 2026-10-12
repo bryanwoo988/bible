@@ -87,9 +87,9 @@ for (const b of BOOKS) {
 }
 KEYS.sort((a, b) => b[0].length - a[0].length);
 
-/** Parse "约3:16", "John 3 16", "罗 8", "ps23" → {book, chapter, verse} or null. */
+/** Parse "约3:16", "约翰福音第3章16节", "John 3 16", "罗 8", "ps23" → {book, chapter, verse} or null. */
 export function parseRef(input) {
-  const s = norm(input).replace(/[：:，,章节篇]/g, " ").replace(/\s+/g, " ");
+  const s = norm(input).replace(/[：:，,第章节節篇]/g, " ").replace(/\s+/g, " ");
   const compact = s.replace(/ /g, "");
   for (const [key, book] of KEYS) {
     if (!key || !compact.startsWith(key)) continue;

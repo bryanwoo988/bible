@@ -1,8 +1,16 @@
 // Offline support: app shell is precached; Bible text is cached as it is read
 // (and prefetched in the background by the app).
-const VERSION = "v11";
-const SHELL = `shell-${VERSION}`;
-const DATA = "data-v1"; // bump only when the text files change
+// Other apps live on the same bryanwoo988.github.io origin and share the
+// Cache Storage, so every cache name carries this app's prefix and only
+// caches with that prefix are ever deleted here.
+const PREFIX = "bible-";
+const VERSION = "v12";
+const SHELL = `${PREFIX}shell-${VERSION}`;
+const DATA = `${PREFIX}data-v1`; // bump only when the text files change
+// Names used before the prefix (up to shell-v11 / data-v1). Nobody else on
+// the origin uses them; the downloaded text is moved over, not fetched again.
+const LEGACY_SHELL = /^shell-v\d+$/;
+const LEGACY_DATA = "data-v1";
 
 const SHELL_FILES = [
   "./",
@@ -30,12 +38,26 @@ self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_FILES)).then(() => self.skipWaiting()));
 });
 
+async function moveLegacyData(keys) {
+  if (!keys.includes(LEGACY_DATA)) return;
+  const [from, to] = await Promise.all([caches.open(LEGACY_DATA), caches.open(DATA)]);
+  const scope = new URL("./", self.location).href;
+  for (const req of await from.keys()) {
+    if (!req.url.startsWith(scope)) continue;
+    const res = await from.match(req);
+    if (res && !(await to.match(req))) await to.put(req, res);
+  }
+  await caches.delete(LEGACY_DATA);
+}
+
 self.addEventListener("activate", (e) => {
-  e.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== SHELL && k !== DATA).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim()),
-  );
+  e.waitUntil((async () => {
+    const keys = await caches.keys();
+    await moveLegacyData(keys);
+    const old = keys.filter((k) => (k.startsWith(PREFIX) && k !== SHELL && k !== DATA) || LEGACY_SHELL.test(k));
+    await Promise.all(old.map((k) => caches.delete(k)));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener("fetch", (e) => {
@@ -65,6 +87,9 @@ self.addEventListener("fetch", (e) => {
         if (res.ok) caches.open(SHELL).then((c) => c.put(e.request, res.clone()));
         return res;
       })
-      .catch(() => caches.match(e.request, { ignoreSearch: true }).then((r) => r || caches.match("index.html"))),
+      .catch(async () => {
+        const shell = await caches.open(SHELL);
+        return (await shell.match(e.request, { ignoreSearch: true })) || (await shell.match("index.html")) || Response.error();
+      }),
   );
 });

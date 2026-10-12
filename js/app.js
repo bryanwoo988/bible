@@ -1918,8 +1918,12 @@ function openSettings(focusImport = false) {
   const fileBackup = $("#file-backup", body);
   $("#backup-import", body).onclick = () => fileBackup.click();
   fileBackup.onchange = async () => {
+    const file = fileBackup.files[0];
+    // Cleared so that picking the same file again still fires a change.
+    fileBackup.value = "";
+    if (!file) return;
     try {
-      importBackup(JSON.parse(await fileBackup.files[0].text()));
+      importBackup(JSON.parse(await file.text()));
       toast(t("toast.restored"));
       render();
     } catch (err) {
