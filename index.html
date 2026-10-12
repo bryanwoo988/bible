@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>圣经 Bible</title>
+  <meta name="description" content="中英对照圣经 · Chinese–English Bible">
+  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16171a" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="圣经">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/app.css">
+  <script>
+    // Apply theme before first paint to avoid a flash.
+    try {
+      const s = JSON.parse(localStorage.getItem("bible.settings") || "{}");
+      if (s.theme === "light" || s.theme === "dark") document.documentElement.dataset.theme = s.theme;
+      if (s.fontSize) document.documentElement.style.setProperty("--fs", s.fontSize + "px");
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <button class="icon-btn" id="btn-library" aria-label="书签、笔记与历史" title="书签 · 笔记 · 历史">
+      <svg viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </button>
+    <button class="ref-btn" id="btn-ref" aria-label="选择经卷章节">
+      <span id="ref-label">创世记 1</span>
+      <svg viewBox="0 0 24 24" class="chev"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <button class="icon-btn" id="btn-tts" aria-label="朗读" title="朗读 Read aloud">
+      <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+    </button>
+    <button class="icon-btn" id="btn-intro" aria-label="导读" title="导读 Introduction">
+      <svg viewBox="0 0 24 24"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H11v17H5.5A1.5 1.5 0 0 1 4 18.5zM20 4.5A1.5 1.5 0 0 0 18.5 3H13v17h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>
+    </button>
+    <button class="icon-btn" id="btn-settings" aria-label="设置" title="设置 Settings">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </header>
+
+  <nav class="tabstrip" id="tabstrip" aria-label="分页"></nav>
+
+  <main id="reader" class="reader" tabindex="-1">
+    <div id="banner"></div>
+    <article id="chapter" class="chapter"></article>
+  </main>
+
+  <div class="pager">
+    <button class="pager-btn" id="btn-prev" aria-label="上一章"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <button class="pager-btn" id="btn-next" aria-label="下一章"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+  </div>
+
+  <!-- Read-aloud player -->
+  <div class="player" id="player" hidden>
+    <div class="pl-top">
+      <span class="pl-ref" id="pl-ref"></span>
+      <button class="pl-speed" id="pl-speed" aria-label="语速"></button>
+    </div>
+    <div class="pl-ctrl">
+      <button id="pl-prev" aria-label="上一节"><svg viewBox="0 0 24 24"><path d="M6 5v14M19 5L9 12l10 7z"/></svg></button>
+      <button id="pl-play" class="big" aria-label="暂停"></button>
+      <button id="pl-next" aria-label="下一节"><svg viewBox="0 0 24 24"><path d="M18 5v14M5 5l10 7-10 7z"/></svg></button>
+      <button id="pl-stop" aria-label="停止朗读"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+    </div>
+  </div>
+
+  <!-- Verse action bar -->
+  <div class="actionbar" id="actionbar" hidden>
+    <div class="ab-row">
+      <div class="seg small" id="mark-mode">
+        <button data-mode="hl" class="on">荧光笔</button>
+        <button data-mode="ul">下划线</button>
+      </div>
+      <div class="colors" id="colors"></div>
+    </div>
+    <div class="ab-row ab-actions">
+      <button data-act="note"><svg viewBox="0 0 24 24"><path d="M4 20h4l10-10-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>笔记</button>
+      <button data-act="bookmark"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span>书签</span></button>
+      <button data-act="read"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>朗读</button>
+      <button data-act="copy"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>复制</button>
+      <button data-act="clear"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg>清除</button>
+      <button data-act="done" class="done">完成</button>
+    </div>
+  </div>
+
+  <!-- Generic bottom sheet -->
+  <div class="scrim" id="scrim" hidden></div>
+  <section class="sheet" id="sheet" hidden role="dialog" aria-modal="true">
+    <div class="sheet-grip"></div>
+    <header class="sheet-head">
+      <h2 id="sheet-title"></h2>
+      <button class="icon-btn" id="sheet-close" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </header>
+    <div class="sheet-body" id="sheet-body"></div>
+  </section>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

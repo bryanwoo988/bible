@@ -1,0 +1,14 @@
+# Source PDFs and copyrighted translations stay on this computer only
+Chinese/
+English/
+*.pdf
+en_*.json
+data/niv/
+
+# Local tooling
+.DS_Store
+__pycache__/
+.claude/
+.claude-flow/
+.swarm/
+ruvector.db
