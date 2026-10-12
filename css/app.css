@@ -401,3 +401,12 @@ body.playing .reader { padding-bottom: calc(190px + var(--safe-b)); }
 .pl-ctrl .big svg { width: 34px; height: 34px; fill: currentColor; }
 body.selecting .player { display: none; }
 #tts-rate button { padding: 7px 8px; }
+
+/* Labeled header buttons */
+.icon-btn.labeled { width: 48px; height: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
+.icon-btn.labeled svg { width: 21px; height: 21px; }
+.icon-btn.labeled .lbl { font-size: 10.5px; line-height: 1; letter-spacing: 0.02em; }
+body.playing #btn-tts { color: var(--accent); }
+.voice-pick { display: flex; gap: 6px; align-items: center; min-width: 0; flex: 1; justify-content: flex-end; }
+.voice-pick select { min-width: 0; flex: 1; max-width: 240px; }
+.voice-pick .btn { padding: 8px 12px; }

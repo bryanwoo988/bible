@@ -403,15 +403,49 @@ const RATES = [0.6, 0.75, 0.9, 1, 1.15, 1.3];
 const PLAY_ICON = '<svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg>';
 const PAUSE_ICON = '<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
 
-const NICE_VOICE = /Samantha|Siri|Google|Microsoft|Premium|Enhanced|Karen|Daniel|Moira|Tingting|Ting-Ting|Meijia|Mei-Jia|Sinji|Lili/i;
-const NOVELTY_VOICE = /Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Junior|Ralph|Fred|Kathy|Grandma|Grandpa|Rocko|Shelley|Flo|Eddy|Reed|Sandy/i;
+const NICE_VOICE = /Siri|Premium|Enhanced|Samantha|Tingting|Ting-Ting|Meijia|Mei-Jia|Sinji|Google|Microsoft/i;
+// Sound-effect voices bundled with macOS/iOS that make no sense for Scripture.
+const NOVELTY_VOICE = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Junior|Ralph|Fred|Kathy)\b/i;
+const MALE = /Li-?mu|Yu-?shu|Eddy|Grandpa|Reed|Rocko|Daniel|Alex|Aaron|Arthur|Gordon|Rishi|Tom|Oliver|Evan|Nathan|Kangkang|Yunxi|Yunyang|Yunjian|Danny|David|Mark|Guy|Eric|Ryan|Liam|Fred|Male/i;
+const FEMALE = /Tingting|Ting-Ting|Meijia|Mei-Jia|Sinji|Lili|Shanshan|Flo|Grandma|Sandy|Shelley|Samantha|Karen|Moira|Tessa|Veena|Fiona|Victoria|Allison|Ava|Susan|Zoe|Nicky|Kate|Serena|Xiaoxiao|Huihui|Yaoyao|Hanhan|Tracy|Zira|Aria|Jenny|Female|Google 普通话|Google 國語|Google 粵語|Google US English/i;
+
+function voiceGender(v) {
+  if (MALE.test(v.name) && !/Female/i.test(v.name)) return "男声";
+  if (FEMALE.test(v.name)) return "女声";
+  return "";
+}
+
+function voiceRegion(v) {
+  if (/^(zh[-_]HK|yue)/i.test(v.lang)) return "粤语";
+  if (/^zh[-_]TW/i.test(v.lang)) return "国语·台湾";
+  if (/^(zh|cmn)/i.test(v.lang)) return "普通话";
+  if (/^en[-_]GB/i.test(v.lang)) return "UK";
+  if (/^en[-_]AU/i.test(v.lang)) return "AU";
+  if (/^en[-_]US/i.test(v.lang)) return "US";
+  return v.lang;
+}
+
+/** Voices usable for a language, best first. */
+function listVoices(lang) {
+  const re = lang === "en" ? /^en/i : /^(zh|cmn|yue)/i;
+  const all = synth ? synth.getVoices().filter((v) => re.test(v.lang) && !NOVELTY_VOICE.test(v.name)) : [];
+  const rank = (v) => (NICE_VOICE.test(v.name) ? 0 : 1) + (lang === "en" ? (/^en[-_]US/i.test(v.lang) ? 0 : 2) : /^(zh[-_]HK|yue)/i.test(v.lang) ? 4 : /^zh[-_]TW/i.test(v.lang) ? 2 : 0);
+  return all.sort((a, z) => rank(a) - rank(z) || a.name.localeCompare(z.name));
+}
 
 function pickVoice(lang) {
-  const all = synth.getVoices().filter((v) => !NOVELTY_VOICE.test(v.name));
-  const voices = [...all.filter((v) => NICE_VOICE.test(v.name)), ...all];
-  if (lang === "en") return voices.find((v) => /^en[-_]US/i.test(v.lang)) || voices.find((v) => /^en/i.test(v.lang));
-  if (state.settings.ttsVoice === "cantonese") return voices.find((v) => /^(zh[-_]HK|yue)/i.test(v.lang));
-  return voices.find((v) => /^zh[-_]CN/i.test(v.lang)) || voices.find((v) => /^zh[-_]TW/i.test(v.lang)) || voices.find((v) => /^(cmn|zh)/i.test(v.lang) && !/HK/i.test(v.lang));
+  const uri = lang === "en" ? state.settings.ttsEnVoice : state.settings.ttsZhVoice;
+  const voices = listVoices(lang);
+  return (uri && voices.find((v) => v.voiceURI === uri)) || voices[0] || null;
+}
+
+function utter(text, lang) {
+  const u = new SpeechSynthesisUtterance(text);
+  const voice = pickVoice(lang);
+  if (voice) u.voice = voice;
+  u.lang = voice?.lang || (lang === "en" ? "en-US" : "zh-CN");
+  u.rate = state.settings.ttsRate;
+  return u;
 }
 
 function ttsParts(v) {
@@ -446,11 +480,7 @@ async function ttsSpeak() {
   }
   if (tts.part === 0) markReading();
   const [lang, text] = parts[tts.part];
-  const u = new SpeechSynthesisUtterance(text);
-  const voice = pickVoice(lang);
-  if (voice) u.voice = voice;
-  u.lang = voice?.lang || (lang === "en" ? "en-US" : state.settings.ttsVoice === "cantonese" ? "zh-HK" : "zh-CN");
-  u.rate = state.settings.ttsRate;
+  const u = utter(text, lang);
   const token = ++tts.token;
   const next = () => {
     if (token !== tts.token || !tts.playing) return;
@@ -558,7 +588,24 @@ $("#pl-speed").onclick = () => {
   }
 };
 synth?.getVoices();
-synth?.addEventListener?.("voiceschanged", () => synth.getVoices());
+synth?.addEventListener?.("voiceschanged", () => {
+  const body = $("#sheet-body");
+  if (!sheet.hidden && $("#voice-zh", body)) fillVoiceSelects(body);
+});
+
+function fillVoiceSelects(body) {
+  for (const [id, lang, key] of [["#voice-zh", "zh", "ttsZhVoice"], ["#voice-en", "en", "ttsEnVoice"]]) {
+    const sel = $(id, body);
+    const voices = listVoices(lang);
+    const cur = state.settings[key];
+    sel.innerHTML = voices.length
+      ? `<option value="">自动（推荐）</option>` + voices.map((v) => {
+          const tags = [voiceRegion(v), voiceGender(v)].filter(Boolean).join(" · ");
+          return `<option value="${esc(v.voiceURI)}" ${v.voiceURI === cur ? "selected" : ""}>${esc(v.name.replace(/\s*\(.*\)$/, ""))}${tags ? " · " + esc(tags) : ""}</option>`;
+        }).join("")
+      : `<option value="">（这部设备没有${lang === "en" ? "英文" : "中文"}语音）</option>`;
+  }
+}
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && tts.playing) keepAwake(true);
 });
@@ -649,7 +696,7 @@ function openNavigator({ newTab = false } = {}) {
 
   body.onclick = (e) => {
     const t = e.target.closest("button");
-    if (!t || t.type === "submit") return;
+    if (!t || t.closest("form")) return;
     if (t.dataset.back === "book") pick = { b: null, c: null };
     else if (t.dataset.back === "chapter") pick.c = null;
     else if (t.dataset.b) {
@@ -948,11 +995,15 @@ function openSettings(focusImport = false) {
     <div class="set-group">
       <div class="set-row"><span class="lbl" style="white-space:nowrap">朗读内容</span>
         <div class="seg" id="tts-content">${[["both", "中英"], ["zh", "中文"], ["en", "英文"]].map(([v, l]) => `<button data-v="${v}" class="${s.ttsContent === v ? "on" : ""}">${l}</button>`).join("")}</div></div>
-      <div class="set-row"><span class="lbl" style="white-space:nowrap">中文语音</span>
-        <div class="seg" id="tts-voice">${[["mandarin", "普通话"], ["cantonese", "粤语"]].map(([v, l]) => `<button data-v="${v}" class="${s.ttsVoice === v ? "on" : ""}">${l}</button>`).join("")}</div></div>
+      <div class="set-row"><label for="voice-zh" style="white-space:nowrap">中文声音</label>
+        <div class="voice-pick"><select id="voice-zh"></select><button class="btn" data-preview="zh" aria-label="试听中文声音">▶</button></div></div>
+      <div class="set-row"><label for="voice-en" style="white-space:nowrap">英文声音</label>
+        <div class="voice-pick"><select id="voice-en"></select><button class="btn" data-preview="en" aria-label="试听英文声音">▶</button></div></div>
       <div class="set-row"><span class="lbl" style="white-space:nowrap">语速</span>
         <div class="seg" id="tts-rate">${RATES.map((r) => `<button data-v="${r}" class="${s.ttsRate === r ? "on" : ""}">${r}</button>`).join("")}</div></div>
-      <div class="set-row"><span class="lbl">试听<small>点顶部的喇叭图标即可从当前位置开始朗读</small></span><button class="btn" id="tts-test">试听</button></div>
+      <div class="set-row"><span class="lbl hint" style="font-size:13px;line-height:1.6">想要更多声音（男声、粤语、高品质）？<br>
+        iPhone/iPad：设置 → 辅助功能 → 朗读内容 → 声音，下载后回来这里选择。<br>
+        Android：设置 → 文字转语音输出，安装语音数据。</span></div>
     </div>
 
     <div class="set-title">译本 VERSIONS</div>
@@ -1002,22 +1053,17 @@ function openSettings(focusImport = false) {
     updatePlayer();
   });
   segPick("#tts-content", "ttsContent");
-  segPick("#tts-voice", "ttsVoice");
-  segPick("#tts-rate", "ttsRate", Number);
-  $("#tts-test", body).onclick = () => {
+  fillVoiceSelects(body);
+  $("#voice-zh", body).onchange = (e) => { s.ttsZhVoice = e.target.value; persist("settings"); preview("zh"); };
+  $("#voice-en", body).onchange = (e) => { s.ttsEnVoice = e.target.value; persist("settings"); preview("en"); };
+  const preview = (lang) => {
+    if (!synth) return toast("这个浏览器不支持朗读");
+    if (tts.on) ttsStop();
     synth.cancel();
-    const say = (text, lang) => {
-      const u = new SpeechSynthesisUtterance(text);
-      const voice = pickVoice(lang);
-      if (voice) u.voice = voice;
-      u.lang = voice?.lang || (lang === "en" ? "en-US" : s.ttsVoice === "cantonese" ? "zh-HK" : "zh-CN");
-      u.rate = s.ttsRate;
-      synth.speak(u);
-    };
-    if (s.ttsContent !== "en") say("神爱世人，甚至将他的独生子赐给他们。", "zh");
-    if (s.ttsContent !== "zh") say("For God so loved the world that he gave his one and only Son.", "en");
-    if (!pickVoice("zh") && s.ttsContent !== "en") toast(s.ttsVoice === "cantonese" ? "这部设备没有粤语语音，可在系统设置中下载" : "这部设备没有中文语音");
+    synth.speak(utter(lang === "en" ? "For God so loved the world that he gave his one and only Son." : "神爱世人，甚至将他的独生子赐给他们。", lang));
   };
+  $$("[data-preview]", body).forEach((b) => (b.onclick = () => preview(b.dataset.preview)));
+  segPick("#tts-rate", "ttsRate", Number);
   $("#ver-zh", body).onchange = (e) => { s.zh = e.target.value; persist("settings"); render(); prefetchVersion(s.zh); };
   $("#ver-en", body).onchange = (e) => { s.en = e.target.value || null; persist("settings"); render(); };
   $$("[data-remove]", body).forEach((btn) => (btn.onclick = async () => {

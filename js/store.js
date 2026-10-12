@@ -21,7 +21,7 @@ function save(key, value) {
 
 export const DEFAULT_SETTINGS = {
   fontSize: 19, theme: "system", zh: "cuv", en: null,
-  ttsContent: "both", ttsVoice: "mandarin", ttsRate: 0.9,
+  ttsContent: "both", ttsZhVoice: "", ttsEnVoice: "", ttsRate: 0.9,
 };
 
 export const state = {
