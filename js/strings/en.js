@@ -179,4 +179,8 @@ export default {
   "listen.off": "Listen off",
   "listen.onToast": "Read-aloud on: tap a verse to listen",
   "listen.offToast": "Read-aloud off: tap a verse to highlight, note or copy",
+  "confirm.closeTab": "Close this tab ({ref})?",
+  "nav.clearRecent": "Clear",
+  "tts.noZhTitle": "Chinese can’t be read aloud",
+  "tts.noZhBody": "This phone doesn’t seem to have a Chinese voice installed, so only the English was read.<br><br><b>Android:</b> Settings → Text-to-speech output (or Accessibility → Text-to-speech) → set the preferred engine to “Google Text-to-speech” → gear icon → Install voice data → Chinese (China). Then come back and tap Listen again.<br><br><b>iPhone:</b> Settings → Accessibility → Spoken Content → Voices → Chinese.",
 };

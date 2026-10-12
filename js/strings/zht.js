@@ -179,4 +179,8 @@ export default {
   "listen.off": "朗讀 關",
   "listen.onToast": "朗讀模式：開（點經文即可朗讀）",
   "listen.offToast": "朗讀模式：關（點經文可畫線、筆記、複製）",
+  "confirm.closeTab": "關閉這個分頁（{ref}）？",
+  "nav.clearRecent": "清除",
+  "tts.noZhTitle": "讀不出中文",
+  "tts.noZhBody": "這部手機好像沒有安裝中文語音，所以只讀出了英文。<br><br><b>Android：</b>設定 → 文字轉語音輸出（或「輔助功能 → 文字轉語音」）→ 首選引擎選「Google 文字轉語音」→ 齒輪 → 安裝語音資料 → 中文（中國大陸），下載完成後回來再按朗讀。<br><br><b>iPhone：</b>設定 → 輔助功能 → 朗讀內容 → 聲音 → 中文。",
 };

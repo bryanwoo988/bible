@@ -410,7 +410,7 @@ function renderTabs() {
   const strip = $("#tabstrip");
   strip.innerHTML = state.tabs
     .map((tab, i) => `<button class="tab${i === state.activeTab ? " active" : ""}" data-tab="${i}">
-        <span>${esc(shortRef(tab.b, tab.c, i === state.activeTab ? null : tab.v > 1 ? tab.v : null))}</span>
+        <span class="tab-label">${esc(refText(tab.b, tab.c, i === state.activeTab ? null : tab.v > 1 ? tab.v : null))}</span>
         ${state.tabs.length > 1 ? `<span class="x" data-close="${i}" role="button" aria-label="${t("tab.close")}">${ICON.x}</span>` : ""}
       </button>`)
     .join("") + `<button class="tab-add" id="tab-add">${ICON.plus}${t("tab.new")}</button>`;
@@ -511,6 +511,8 @@ $("#tabstrip").addEventListener("click", (e) => {
   const close = e.target.closest("[data-close]");
   if (close) {
     const i = Number(close.dataset.close);
+    const tab = state.tabs[i];
+    if (!confirm(t("confirm.closeTab", { ref: refText(tab.b, tab.c, tab.v > 1 ? tab.v : null) }))) return;
     state.tabs.splice(i, 1);
     if (state.activeTab >= i && state.activeTab > 0) state.activeTab--;
     persist("tabs", "activeTab");
@@ -770,9 +772,10 @@ function pickVoice(lang) {
   return (uri && voices.find((v) => v.voiceURI === uri)) || voices[0] || null;
 }
 
-function utter(text, lang) {
+function utter(text, lang, { noVoice = false } = {}) {
   const u = new SpeechSynthesisUtterance(text);
-  const voice = pickVoice(lang);
+  // After a failed attempt, let the phone pick its own Chinese voice by language.
+  const voice = noVoice || (lang === "zh" && tts.zhNoVoice) ? null : pickVoice(lang);
   if (voice) u.voice = voice;
   u.lang = voice?.lang || (lang === "en" ? "en-US" : "zh-CN");
   u.rate = state.settings.ttsRate;
@@ -812,18 +815,50 @@ async function ttsSpeak() {
   }
   if (tts.part === 0) markReading();
   const [lang, text] = parts[tts.part];
+  speakPart(text, lang);
+}
+
+/**
+ * Speak one line. Some Android phones have no Chinese voice data: the engine then
+ * fails, or "finishes" instantly without a sound. Retry once letting the phone
+ * choose a voice by language, and if that also fails, explain how to fix it.
+ */
+function speakPart(text, lang, retried = false) {
   const u = utter(text, lang);
   const token = ++tts.token;
+  const started = Date.now();
   const next = () => {
     if (token !== tts.token || !tts.playing) return;
     tts.part++;
     ttsSpeak();
   };
-  u.onend = next;
+  const failed = () => {
+    if (token !== tts.token || !tts.playing) return;
+    if (lang === "zh" && !retried && !tts.zhNoVoice) {
+      tts.zhNoVoice = true;
+      return speakPart(text, lang, true);
+    }
+    if (lang === "zh") warnNoChinese();
+    next();
+  };
+  u.onend = () => {
+    const tooQuick = lang === "zh" && text.length > 4 && Date.now() - started < Math.min(500, text.length * 50);
+    if (tooQuick) failed();
+    else next();
+  };
   u.onerror = (e) => {
-    if (e.error !== "interrupted" && e.error !== "canceled") next();
+    if (e.error === "interrupted" || e.error === "canceled") return;
+    failed();
   };
   synth.speak(u);
+}
+
+function warnNoChinese() {
+  if (tts.warnedZh) return;
+  tts.warnedZh = true;
+  const body = openSheet(t("tts.noZhTitle"), `<p style="line-height:1.7;font-size:16px;margin:4px 0 16px">${t("tts.noZhBody")}</p>
+    <div class="note-actions"><button class="btn primary" id="nozh-ok">OK</button></div>`);
+  $("#nozh-ok", body).onclick = closeSheet;
 }
 
 function markReading() {
@@ -1127,8 +1162,8 @@ function openBooks({ newTab = pendingNewTab, title = null } = {}) {
       ${!newTab && state.settings.onboarded && state.history.length ? `<button class="continue-card" data-continue>
           <span><span class="k">${t("books.continue")}</span><span class="r" style="display:block">${esc(refText(tab.b, tab.c, tab.v > 1 ? tab.v : null))}</span></span>
           <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>` : ""}
-      ${recent.length ? `<div class="nav-section">${t("nav.recent")}</div>
-        <div class="recent">${recent.map((h) => `<button data-recent="${vkey(h.b, h.c, h.v)}">${esc(shortRef(h.b, h.c, h.v > 1 ? h.v : null))}</button>`).join("")}</div>` : ""}
+      ${recent.length ? `<div class="nav-section section-row"><span>${t("nav.recent")}</span><button class="link-btn" data-clear-recent>${t("nav.clearRecent")}</button></div>
+        <div class="recent">${recent.map((h) => `<button data-recent="${vkey(h.b, h.c, h.v)}">${esc(refText(h.b, h.c, h.v > 1 ? h.v : null))}</button>`).join("")}</div>` : ""}
       <div class="testament-tabs">
         <button data-test="ot" class="${booksTestament === "ot" ? "on" : ""}">${t("nav.ot")}</button>
         <button data-test="nt" class="${booksTestament === "nt" ? "on" : ""}">${t("nav.nt")}</button>
@@ -1149,6 +1184,11 @@ function openBooks({ newTab = pendingNewTab, title = null } = {}) {
     const el = e.target.closest("button");
     if (!el || el.closest("form")) return;
     if (el.dataset.continue !== undefined) return showReader();
+    if (el.dataset.clearRecent !== undefined) {
+      state.settings.recentClearedAt = Date.now();
+      persist("settings");
+      return draw();
+    }
     if (el.dataset.recent) {
       const { b, c, v } = parseKey(el.dataset.recent);
       return goFromPage(b, c, v);
@@ -1232,7 +1272,9 @@ function openVersionSheet() {
 function recentPassages(n) {
   const seen = new Set();
   const out = [];
+  const since = state.settings.recentClearedAt || 0;
   for (const h of state.history) {
+    if (h.t <= since) break; // history is newest first
     const k = `${h.b}.${h.c}`;
     if (seen.has(k)) continue;
     seen.add(k);
