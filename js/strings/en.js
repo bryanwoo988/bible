@@ -153,4 +153,11 @@ export default {
   "welcome.theme": "Appearance",
   "welcome.continue": "Get started",
   "nav.start": "Where would you like to start?",
+  "set.display": "Bible text",
+  "display.both": "Both",
+  "display.zh": "Chinese only",
+  "display.en": "English only",
+  "pl.verse": "Verse {v}",
+  "pl.total": "of {n}",
+  "pl.progress": "Reading progress",
 };

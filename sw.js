@@ -1,6 +1,6 @@
 // Offline support: app shell is precached; Bible text is cached as it is read
 // (and prefetched in the background by the app).
-const VERSION = "v5";
+const VERSION = "v6";
 const SHELL = `shell-${VERSION}`;
 const DATA = "data-v1"; // bump only when the text files change
 

@@ -153,4 +153,11 @@ export default {
   "welcome.theme": "外观",
   "welcome.continue": "开始",
   "nav.start": "从哪里开始读？",
+  "set.display": "经文显示",
+  "display.both": "中英对照",
+  "display.zh": "只显示中文",
+  "display.en": "只显示英文",
+  "pl.verse": "第 {v} 节",
+  "pl.total": "共 {n} 节",
+  "pl.progress": "朗读进度",
 };

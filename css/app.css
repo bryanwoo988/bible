@@ -447,3 +447,31 @@ body.playing #btn-tts { color: var(--accent); }
   font-size: 15px; font-weight: 500; border: 1px solid transparent;
 }
 .recent button:active { border-color: var(--accent); }
+
+/* ---------- Single-language display ---------- */
+body.text-zh .v .en, body.text-zh .chapter-title .en { display: none; }
+body.text-en .v .zh, body.text-en .chapter-title .zh { display: none; }
+body.text-en .v .en { margin-top: 0; font-size: var(--fs); color: var(--text); line-height: 1.65; }
+.v .en .badges { display: none; }
+body.text-en .v .en .badges { display: inline-flex; }
+
+/* ---------- Read-aloud progress ---------- */
+.pl-progress { display: flex; align-items: center; gap: 10px; margin: 2px 0 6px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pl-progress span { white-space: nowrap; min-width: 52px; }
+.pl-progress span:last-child { text-align: right; }
+#pl-bar {
+  flex: 1; -webkit-appearance: none; appearance: none; height: 28px; background: transparent; margin: 0; cursor: pointer;
+  --p: 0%;
+}
+#pl-bar::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 3px;
+  background: linear-gradient(to right, var(--accent) var(--p), var(--line) var(--p));
+}
+#pl-bar::-moz-range-track { height: 6px; border-radius: 3px; background: var(--line); }
+#pl-bar::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--accent); }
+#pl-bar::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; margin-top: -8px;
+  background: var(--accent); border: 3px solid var(--surface); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+#pl-bar::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); border: 3px solid var(--surface); }
+body.playing .reader { padding-bottom: calc(230px + var(--safe-b)); }

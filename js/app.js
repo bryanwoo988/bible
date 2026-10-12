@@ -117,11 +117,13 @@ function verseHTML(b, c, v, zh, en) {
   const enHtml = en === undefined ? "" : en
     ? `<span class="t">${esc(en)}</span>`
     : `<span class="empty">${en === "" ? "(Not in the earliest manuscripts)" : ""}</span>`;
+  // The note badge sits on both lines; CSS shows it on the visible one.
+  const badge = note ? `<span class="badges"><button class="badge" data-note="${v}" aria-label="${t("act.note")}">${ICON.note}</button></span>` : "";
   return `<div class="v" data-v="${v}" ${attrs}>
     ${state.bookmarks[k] ? `<span class="bm-ribbon" aria-label="${t("act.bookmark")}"></span>` : ""}
     <span class="vn">${v}</span>
-    <p class="zh">${zhHtml}${note ? `<span class="badges"><button class="badge" data-note="${v}" aria-label="${t("act.note")}">${ICON.note}</button></span>` : ""}</p>
-    ${enHtml ? `<p class="en">${enHtml}</p>` : ""}
+    <p class="zh">${zhHtml}${badge}</p>
+    ${enHtml ? `<p class="en">${enHtml}${badge}</p>` : ""}
     ${note ? `<div class="note-preview" data-note="${v}">${esc(note.text)}</div>` : ""}
   </div>`;
 }
@@ -485,9 +487,10 @@ function copyText(verses) {
   const lines = [];
   for (const v of verses) {
     const el = chapterEl.querySelector(`.v[data-v="${v}"]`);
-    const zh = el?.querySelector(".zh .t")?.textContent || "";
-    const en = el?.querySelector(".en .t")?.textContent || "";
-    lines.push(`${v} ${zh}${en ? "\n" + en : ""}`);
+    const mode = state.settings.textMode;
+    const zh = mode === "en" ? "" : el?.querySelector(".zh .t")?.textContent || "";
+    const en = mode === "zh" ? "" : el?.querySelector(".en .t")?.textContent || "";
+    lines.push(`${v} ${[zh, en].filter(Boolean).join("\n")}`);
   }
   const first = verses[0], last = verses[verses.length - 1];
   const range = first === last ? `${first}` : `${first}-${last}`;
@@ -553,7 +556,8 @@ function utter(text, lang) {
 function ttsParts(v) {
   const el = chapterEl.querySelector(`.v[data-v="${v}"]`);
   if (!el) return null;
-  const mode = state.settings.ttsContent;
+  // When only one language is shown, read only that language.
+  const mode = state.settings.textMode !== "both" ? state.settings.textMode : state.settings.ttsContent;
   const parts = [];
   const zh = el.querySelector(".zh .t")?.textContent.replace(/（[注註]：[^）]*）/g, "");
   const en = el.querySelector(".en .t")?.textContent;
@@ -615,6 +619,13 @@ function updatePlayer() {
   $("#player").hidden = !tts.on;
   document.body.classList.toggle("playing", tts.on);
   $("#pl-ref").textContent = `${bookName(b)} ${c}:${tts.v}`;
+  const total = chapterEl.querySelectorAll(".v").length || 1;
+  const bar = $("#pl-bar");
+  bar.max = total;
+  if (!bar.dragging) bar.value = tts.v;
+  bar.style.setProperty("--p", `${total > 1 ? ((bar.value - 1) / (total - 1)) * 100 : 100}%`);
+  $("#pl-pos").textContent = t("pl.verse", { v: bar.value });
+  $("#pl-total").textContent = t("pl.total", { n: total });
   $("#pl-speed").textContent = t("pl.speed", { r: state.settings.ttsRate });
   const play = $("#pl-play");
   play.innerHTML = tts.playing ? PAUSE_ICON : PLAY_ICON;
@@ -663,9 +674,9 @@ function ttsStop() {
   updatePlayer();
 }
 
-function ttsJump(delta) {
+function ttsJump(delta, absolute = null) {
   const count = chapterEl.querySelectorAll(".v").length;
-  tts.v = Math.min(Math.max(1, tts.v + delta), count);
+  tts.v = Math.min(Math.max(1, absolute ?? tts.v + delta), count);
   tts.part = 0;
   tts.token++;
   synth.cancel();
@@ -678,6 +689,16 @@ $("#pl-play").onclick = () => (tts.playing ? ttsPause() : ttsResume());
 $("#pl-stop").onclick = ttsStop;
 $("#pl-prev").onclick = () => ttsJump(-1);
 $("#pl-next").onclick = () => ttsJump(1);
+// Progress bar: drag to preview the verse number, release to jump there.
+const plBar = $("#pl-bar");
+plBar.addEventListener("input", () => {
+  plBar.dragging = true;
+  updatePlayer();
+});
+plBar.addEventListener("change", () => {
+  plBar.dragging = false;
+  ttsJump(0, Number(plBar.value));
+});
 $("#pl-speed").onclick = () => {
   const i = RATES.indexOf(state.settings.ttsRate);
   state.settings.ttsRate = RATES[(i + 1) % RATES.length];
@@ -1102,6 +1123,8 @@ $("#btn-intro").onclick = openIntro;
 
 function applySettings() {
   const s = state.settings;
+  document.body.classList.toggle("text-zh", s.textMode === "zh");
+  document.body.classList.toggle("text-en", s.textMode === "en");
   document.documentElement.style.setProperty("--fs", s.fontSize + "px");
   if (s.theme === "system") delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = s.theme;
@@ -1126,6 +1149,12 @@ function openSettings(focusImport = false) {
     <div class="set-group"><div class="set-row">
       <div class="seg full" id="ui-lang" style="flex:1">
         ${UI_LANGS.map(([v, label]) => `<button data-v="${v}" class="${uiLang() === v ? "on" : ""}">${label}</button>`).join("")}
+      </div></div></div>
+
+    <div class="set-title">${t("set.display")}</div>
+    <div class="set-group"><div class="set-row">
+      <div class="seg full" id="text-mode" style="flex:1">
+        ${["both", "zh", "en"].map((v) => `<button data-v="${v}" class="${s.textMode === v ? "on" : ""}">${t("display." + v)}</button>`).join("")}
       </div></div></div>
 
     <div class="set-title">${t("set.font")}</div>
@@ -1220,6 +1249,8 @@ function openSettings(focusImport = false) {
     updatePlayer();
   });
   segPick("#tts-content", "ttsContent");
+  segPick("#text-mode", "textMode");
+  $("#text-mode", body).addEventListener("click", () => applySettings());
   fillVoiceSelects(body);
   $("#voice-zh", body).onchange = (e) => { s.ttsZhVoice = e.target.value; persist("settings"); preview("zh"); };
   $("#voice-en", body).onchange = (e) => { s.ttsEnVoice = e.target.value; persist("settings"); preview("en"); };
