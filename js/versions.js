@@ -1,10 +1,11 @@
 // Bible text sources: built-in versions (static files under data/) and
 // versions the user imports on their own device (stored in IndexedDB).
 import { idb } from "./store.js";
+import { t } from "./i18n.js";
 
 export const BUILTIN = [
-  { id: "cuv", name: "和合本（简体）", short: "和合本", lang: "zh" },
-  { id: "cuvt", name: "和合本（繁體）", short: "和合本繁", lang: "zh" },
+  { id: "cuv", name: "和合本 简体 (CUV)", short: "和合本", lang: "zh" },
+  { id: "cuvt", name: "和合本 繁體 (CUV)", short: "和合本繁", lang: "zh" },
   {
     id: "niv", name: "NIV (New International Version)", short: "NIV", lang: "en",
     notice: "Scripture quotations taken from The Holy Bible, New International Version® NIV®. Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.™ Used by permission. All rights reserved worldwide.",
@@ -92,7 +93,7 @@ function normaliseBooks(json) {
   } else if (Array.isArray(json) && json.length === 66 && Array.isArray(json[0])) {
     books = json;
   } else {
-    throw new Error("无法识别的文件格式（需要 66 卷书的 JSON）");
+    throw new Error(t("err.format"));
   }
   books = books.map((chs) => chs.map((vs) => vs.map((v) => (typeof v === "string" ? v.trim() : String(v ?? "")))));
   for (const [b, c, v, full] of OMITTED) {

@@ -1,4 +1,5 @@
 // Persistent state: small things in localStorage, imported Bible versions in IndexedDB.
+import { t } from "./i18n.js";
 
 const PREFIX = "bible.";
 
@@ -34,6 +35,8 @@ export const state = {
   history: load("history", []), // [{ b, c, v, t }] newest first
 };
 
+const validTab = (t) => t && Number.isInteger(t.b) && t.b >= 0 && t.b < 66 && Number.isInteger(t.c) && t.c >= 1;
+if (Array.isArray(state.tabs)) state.tabs = state.tabs.filter(validTab);
 if (!Array.isArray(state.tabs) || !state.tabs.length) {
   state.tabs = [{ b: 42, c: 3, v: 1 }];
   state.activeTab = 0;
@@ -83,10 +86,10 @@ function tx(mode, fn) {
   return db().then(
     (d) =>
       new Promise((resolve, reject) => {
-        const t = d.transaction("versions", mode);
-        const req = fn(t.objectStore("versions"));
-        t.oncomplete = () => resolve(req && req.result);
-        t.onerror = () => reject(t.error);
+        const txn = d.transaction("versions", mode);
+        const req = fn(txn.objectStore("versions"));
+        txn.oncomplete = () => resolve(req && req.result);
+        txn.onerror = () => reject(txn.error);
       }),
   );
 }
@@ -114,7 +117,7 @@ export function exportBackup() {
 }
 
 export function importBackup(data) {
-  if (!data || data.app !== "bible-pwa") throw new Error("不是本应用的备份文件");
+  if (!data || data.app !== "bible-pwa") throw new Error(t("err.notBackup"));
   Object.assign(state.marks, data.marks || {});
   Object.assign(state.notes, data.notes || {});
   Object.assign(state.bookmarks, data.bookmarks || {});

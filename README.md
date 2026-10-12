@@ -11,6 +11,7 @@ A simple bilingual (Chinese / English) Bible app that installs on a phone's home
 - **导读**: an introduction to every book in Chinese and English (author, date, theme, summary, key verse, outline)
 - **标记**: highlight or underline in 5 colours, notes, bookmarks, copy
 - **历史**: a reading log by date and time, showing book, chapter and verse
+- **界面语言**: the interface (button labels, menus, dates) in 简体中文, 繁體中文 or English; the Bible text stays bilingual
 - **设置**: font size, light/dark mode, version choice, read-aloud options, backup and restore
 - Data is stored on the device (localStorage / IndexedDB); nothing is uploaded
 
@@ -26,6 +27,12 @@ It's a static site with no build step:
 
 ```bash
 python3 -m http.server 8765
+```
+
+After editing `js/strings/zhs.js` or `js/intro.js`, regenerate the 繁體 files (needs `pip install opencc-python-reimplemented`):
+
+```bash
+python tools/build_zht.py
 ```
 
 To rebuild the 和合本 data from the PDF (needs `pip install pymupdf opencc-python-reimplemented`):

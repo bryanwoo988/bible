@@ -410,3 +410,6 @@ body.playing #btn-tts { color: var(--accent); }
 .voice-pick { display: flex; gap: 6px; align-items: center; min-width: 0; flex: 1; justify-content: flex-end; }
 .voice-pick select { min-width: 0; flex: 1; max-width: 240px; }
 .voice-pick .btn { padding: 8px 12px; }
+.chapter-title.en-first .en { font-size: calc(var(--fs) * 1.25); font-weight: 700; color: var(--text); margin: 0 0 2px; }
+.chapter-title.en-first .zh { font-size: calc(var(--fs) * 0.8); font-weight: 400; color: var(--muted); letter-spacing: 0.02em; }
+.intro p.e-main { font-family: Georgia, serif; }

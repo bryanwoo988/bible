@@ -1,5 +1,5 @@
 import { BOOKS, parseRef, toTrad } from "./books.js";
-import { INTRO } from "./intro.js";
+import { t, applyI18n, setUiLang, uiLang, isEn, intros, defaultUiLang, UI_LANGS, LOCALE } from "./i18n.js";
 import { state, persist, vkey, parseKey, recordHistory, exportBackup, importBackup } from "./store.js";
 import {
   BUILTIN, allVersions, hasVersion, versionMeta, getChapter, loadImported,
@@ -11,7 +11,6 @@ const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 const COLORS = ["yellow", "green", "blue", "pink", "orange"];
-const COLOR_NAMES = { yellow: "黄", green: "绿", blue: "蓝", pink: "粉", orange: "橙" };
 const ICON = {
   note: '<svg viewBox="0 0 24 24"><path d="M4 20h4l10-10-4-4L4 16z"/></svg>',
   trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
@@ -20,10 +19,20 @@ const ICON = {
   search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
 };
 
-const trad = () => state.settings.zh === "cuvt";
-const bookName = (b) => (trad() ? BOOKS[b].zht : BOOKS[b].zh);
+const trad = () => uiLang() === "zht" || (uiLang() === "zhs" && state.settings.zh === "cuvt");
+const zhBookName = (b) => (trad() || state.settings.zh === "cuvt" ? BOOKS[b].zht : BOOKS[b].zh);
+// Book name in the interface language; the "other" name is shown as a subtitle.
+const bookName = (b) => (isEn() ? BOOKS[b].en : zhBookName(b));
+const otherBookName = (b) => (isEn() ? zhBookName(b) : BOOKS[b].en);
 const refText = (b, c, v) => `${bookName(b)} ${c}${v ? ":" + v : ""}`;
-const shortRef = (b, c, v) => `${trad() ? toTrad(BOOKS[b].abbr) : BOOKS[b].abbr}${c}${v ? ":" + v : ""}`;
+const otherRef = (b, c, v) => `${otherBookName(b)} ${c}${v ? ":" + v : ""}`;
+const shortRef = (b, c, v) => {
+  const abbr = isEn() ? BOOKS[b].enAbbr + " " : trad() ? toTrad(BOOKS[b].abbr) : BOOKS[b].abbr;
+  return `${abbr}${c}${v ? ":" + v : ""}`;
+};
+const sampleZh = () => (trad() ? "神愛世人，甚至將他的獨生子賜給他們。" : "神爱世人，甚至将他的独生子赐给他们。");
+const SAMPLE_EN = "For God so loved the world that he gave his one and only Son.";
+const chapterTitle = (b, c) => t(b === 18 ? "psalmTitle" : "chapterTitle", { book: zhBookName(b), c });
 
 /* ============================================================
    Reader
@@ -51,7 +60,7 @@ async function render({ scrollTo, flash } = {}) {
   const { b, c } = tab;
   const book = BOOKS[b];
   $("#ref-label").textContent = `${bookName(b)} ${c}`;
-  document.title = `${bookName(b)} ${c} · 圣经`;
+  document.title = `${bookName(b)} ${c} · ${t("app.title")}`;
   $("#btn-prev").disabled = b === 0 && c === 1;
   $("#btn-next").disabled = b === 65 && c === book.chapters;
   renderTabs();
@@ -59,7 +68,7 @@ async function render({ scrollTo, flash } = {}) {
 
   const enId = englishVersion();
   renderBanner(enId);
-  if (!rendered || rendered.b !== b || rendered.c !== c) chapterEl.innerHTML = '<div class="loading">载入中…</div>';
+  if (!rendered || rendered.b !== b || rendered.c !== c) chapterEl.innerHTML = `<div class="loading">${t("loading")}</div>`;
 
   let zh, en;
   try {
@@ -68,7 +77,7 @@ async function render({ scrollTo, flash } = {}) {
       enId ? getChapter(enId, b, c).catch(() => null) : null,
     ]);
   } catch (e) {
-    chapterEl.innerHTML = `<div class="empty-state">无法载入经文，请检查网络后重试。<br><button class="btn" id="retry">重试</button></div>`;
+    chapterEl.innerHTML = `<div class="empty-state">${t("loadError")}<br><button class="btn" id="retry">${t("retry")}</button></div>`;
     $("#retry").onclick = () => render({ scrollTo, flash });
     return;
   }
@@ -76,11 +85,13 @@ async function render({ scrollTo, flash } = {}) {
   if (activeTab() !== tab || tab.b !== b || tab.c !== c) return;
 
   const count = Math.max(zh?.length || 0, en?.length || 0);
-  const html = [`<header class="chapter-title"><div class="zh">${esc(bookName(b))} 第 ${c} ${b === 18 ? "篇" : "章"}</div><div class="en">${esc(book.en)} ${c}</div></header>`];
+  const zhTitle = `<div class="zh">${esc(chapterTitle(b, c))}</div>`;
+  const enTitle = `<div class="en">${esc(book.en)} ${c}</div>`;
+  const html = [`<header class="chapter-title${isEn() ? " en-first" : ""}">${isEn() ? enTitle + zhTitle : zhTitle + enTitle}</header>`];
   for (let v = 1; v <= count; v++) html.push(verseHTML(b, c, v, zh?.[v - 1], en ? en[v - 1] : undefined));
   html.push(`<div class="chapter-end">
-    ${b || c > 1 ? `<button data-go="prev">‹ 上一章</button>` : ""}
-    ${b < 65 || c < book.chapters ? `<button data-go="next">下一章 ›</button>` : ""}
+    ${b || c > 1 ? `<button data-go="prev">${t("prevChapter")}</button>` : ""}
+    ${b < 65 || c < book.chapters ? `<button data-go="next">${t("nextChapter")}</button>` : ""}
   </div>`);
   chapterEl.innerHTML = html.join("");
   rendered = { b, c };
@@ -102,14 +113,14 @@ function verseHTML(b, c, v, zh, en) {
   const attrs = [mark.hl ? `data-hl="${mark.hl}"` : "", mark.ul ? `data-ul="${mark.ul}"` : ""].join(" ");
   const zhHtml = zh
     ? `<span class="t">${esc(zh)}</span>`
-    : zh === "" ? `<span class="empty">${trad() ? "（併入上節）" : "（并入上节）"}</span>` : "";
+    : zh === "" ? `<span class="empty">${t("merged")}</span>` : "";
   const enHtml = en === undefined ? "" : en
     ? `<span class="t">${esc(en)}</span>`
     : `<span class="empty">${en === "" ? "(Not in the earliest manuscripts)" : ""}</span>`;
   return `<div class="v" data-v="${v}" ${attrs}>
-    ${state.bookmarks[k] ? '<span class="bm-ribbon" aria-label="书签"></span>' : ""}
+    ${state.bookmarks[k] ? `<span class="bm-ribbon" aria-label="${t("act.bookmark")}"></span>` : ""}
     <span class="vn">${v}</span>
-    <p class="zh">${zhHtml}${note ? `<span class="badges"><button class="badge" data-note="${v}" aria-label="笔记">${ICON.note}</button></span>` : ""}</p>
+    <p class="zh">${zhHtml}${note ? `<span class="badges"><button class="badge" data-note="${v}" aria-label="${t("act.note")}">${ICON.note}</button></span>` : ""}</p>
     ${enHtml ? `<p class="en">${enHtml}</p>` : ""}
     ${note ? `<div class="note-preview" data-note="${v}">${esc(note.text)}</div>` : ""}
   </div>`;
@@ -121,7 +132,7 @@ function renderBanner(enId) {
     el.innerHTML = "";
     return;
   }
-  el.innerHTML = `<div class="banner"><span>尚未加入英文译本。导入 NIV 等 JSON 文件后即可中英对照。</span><button id="banner-import">导入</button></div>`;
+  el.innerHTML = `<div class="banner"><span>${t("banner.noEnglish")}</span><button id="banner-import">${t("import")}</button></div>`;
   $("#banner-import").onclick = () => openSettings(true);
 }
 
@@ -239,11 +250,11 @@ function topVisibleVerse() {
 function renderTabs() {
   const strip = $("#tabstrip");
   strip.innerHTML = state.tabs
-    .map((t, i) => `<button class="tab${i === state.activeTab ? " active" : ""}" data-tab="${i}">
-        <span>${esc(shortRef(t.b, t.c, i === state.activeTab ? null : t.v > 1 ? t.v : null))}</span>
-        ${state.tabs.length > 1 ? `<span class="x" data-close="${i}" role="button" aria-label="关闭分页">${ICON.x}</span>` : ""}
+    .map((tab, i) => `<button class="tab${i === state.activeTab ? " active" : ""}" data-tab="${i}">
+        <span>${esc(shortRef(tab.b, tab.c, i === state.activeTab ? null : tab.v > 1 ? tab.v : null))}</span>
+        ${state.tabs.length > 1 ? `<span class="x" data-close="${i}" role="button" aria-label="${t("tab.close")}">${ICON.x}</span>` : ""}
       </button>`)
-    .join("") + `<button class="tab-add" id="tab-add" aria-label="新分页">${ICON.plus}新分页</button>`;
+    .join("") + `<button class="tab-add" id="tab-add">${ICON.plus}${t("tab.new")}</button>`;
   const active = strip.querySelector(".tab.active");
   active?.scrollIntoView({ inline: "nearest", block: "nearest" });
 }
@@ -273,7 +284,9 @@ $("#tabstrip").addEventListener("click", (e) => {
    ============================================================ */
 
 const actionbar = $("#actionbar");
-$("#colors").innerHTML = COLORS.map((c) => `<button data-c="${c}" aria-label="${COLOR_NAMES[c]}色"></button>`).join("");
+const renderColors = () =>
+  ($("#colors").innerHTML = COLORS.map((c) => `<button data-c="${c}" aria-label="${t("color." + c)}"></button>`).join(""));
+renderColors();
 
 function toggleSelect(v) {
   if (selection.has(v)) selection.delete(v);
@@ -302,7 +315,7 @@ function updateActionbar() {
   const allBookmarked = keys.every((k) => state.bookmarks[k]);
   const bm = $('[data-act="bookmark"]', actionbar);
   bm.classList.toggle("on", allBookmarked);
-  bm.querySelector("span").textContent = allBookmarked ? "取消书签" : "书签";
+  bm.querySelector("[data-bm-label]").textContent = t(allBookmarked ? "act.unbookmark" : "act.bookmark");
   const current = keys.length === 1 ? state.marks[keys[0]]?.[markMode] : null;
   $$("#colors button").forEach((btn) => btn.classList.toggle("on", btn.dataset.c === current));
 }
@@ -348,7 +361,7 @@ actionbar.addEventListener("click", async (e) => {
       for (const k of keys) add ? (state.bookmarks[k] = Date.now()) : delete state.bookmarks[k];
       persist("bookmarks");
       verses.forEach(rerenderVerse);
-      toast(add ? "已加入书签" : "已取消书签");
+      toast(t(add ? "toast.bookmarked" : "toast.unbookmarked"));
       clearSelection();
       break;
     }
@@ -360,9 +373,9 @@ actionbar.addEventListener("click", async (e) => {
       const text = copyText(verses);
       try {
         await navigator.clipboard.writeText(text);
-        toast("已复制");
+        toast(t("toast.copied"));
       } catch {
-        toast("无法复制");
+        toast(t("toast.copyFailed"));
       }
       clearSelection();
       break;
@@ -390,7 +403,7 @@ function copyText(verses) {
   const first = verses[0], last = verses[verses.length - 1];
   const range = first === last ? `${first}` : `${first}-${last}`;
   const enName = versionMeta(englishVersion())?.short;
-  return `${lines.join("\n")}\n— ${bookName(b)} ${c}:${range} / ${BOOKS[b].en} ${c}:${range}${enName ? ` (${enName})` : ""}`;
+  return `${lines.join("\n")}\n— ${zhBookName(b)} ${c}:${range} / ${BOOKS[b].en} ${c}:${range}${enName ? ` (${enName})` : ""}`;
 }
 
 /* ============================================================
@@ -410,15 +423,15 @@ const MALE = /Li-?mu|Yu-?shu|Eddy|Grandpa|Reed|Rocko|Daniel|Alex|Aaron|Arthur|Go
 const FEMALE = /Tingting|Ting-Ting|Meijia|Mei-Jia|Sinji|Lili|Shanshan|Flo|Grandma|Sandy|Shelley|Samantha|Karen|Moira|Tessa|Veena|Fiona|Victoria|Allison|Ava|Susan|Zoe|Nicky|Kate|Serena|Xiaoxiao|Huihui|Yaoyao|Hanhan|Tracy|Zira|Aria|Jenny|Female|Google 普通话|Google 國語|Google 粵語|Google US English/i;
 
 function voiceGender(v) {
-  if (MALE.test(v.name) && !/Female/i.test(v.name)) return "男声";
-  if (FEMALE.test(v.name)) return "女声";
+  if (MALE.test(v.name) && !/Female/i.test(v.name)) return t("voice.male");
+  if (FEMALE.test(v.name)) return t("voice.female");
   return "";
 }
 
 function voiceRegion(v) {
-  if (/^(zh[-_]HK|yue)/i.test(v.lang)) return "粤语";
-  if (/^zh[-_]TW/i.test(v.lang)) return "国语·台湾";
-  if (/^(zh|cmn)/i.test(v.lang)) return "普通话";
+  if (/^(zh[-_]HK|yue)/i.test(v.lang)) return t("voice.cantonese");
+  if (/^zh[-_]TW/i.test(v.lang)) return t("voice.taiwan");
+  if (/^(zh|cmn)/i.test(v.lang)) return t("voice.mandarin");
   if (/^en[-_]GB/i.test(v.lang)) return "UK";
   if (/^en[-_]AU/i.test(v.lang)) return "AU";
   if (/^en[-_]US/i.test(v.lang)) return "US";
@@ -453,7 +466,7 @@ function ttsParts(v) {
   if (!el) return null;
   const mode = state.settings.ttsContent;
   const parts = [];
-  const zh = el.querySelector(".zh .t")?.textContent.replace(/（注：[^）]*）/g, "");
+  const zh = el.querySelector(".zh .t")?.textContent.replace(/（[注註]：[^）]*）/g, "");
   const en = el.querySelector(".en .t")?.textContent;
   if (zh && mode !== "en") parts.push(["zh", zh]);
   if (en && mode !== "zh") parts.push(["en", en]);
@@ -513,10 +526,10 @@ function updatePlayer() {
   $("#player").hidden = !tts.on;
   document.body.classList.toggle("playing", tts.on);
   $("#pl-ref").textContent = `${bookName(b)} ${c}:${tts.v}`;
-  $("#pl-speed").textContent = `语速 ${state.settings.ttsRate}×`;
+  $("#pl-speed").textContent = t("pl.speed", { r: state.settings.ttsRate });
   const play = $("#pl-play");
   play.innerHTML = tts.playing ? PAUSE_ICON : PLAY_ICON;
-  play.setAttribute("aria-label", tts.playing ? "暂停" : "继续");
+  play.setAttribute("aria-label", t(tts.playing ? "pl.pause" : "pl.resume"));
 }
 
 async function keepAwake(on) {
@@ -527,7 +540,7 @@ async function keepAwake(on) {
 }
 
 function ttsStart(v) {
-  if (!synth) return toast("这个浏览器不支持朗读");
+  if (!synth) return toast(t("tts.unsupported"));
   synth.cancel();
   Object.assign(tts, { on: true, playing: true, v: v || firstFullyVisibleVerse() || 1, part: 0 });
   keepAwake(true);
@@ -599,11 +612,11 @@ function fillVoiceSelects(body) {
     const voices = listVoices(lang);
     const cur = state.settings[key];
     sel.innerHTML = voices.length
-      ? `<option value="">自动（推荐）</option>` + voices.map((v) => {
+      ? `<option value="">${t("voice.auto")}</option>` + voices.map((v) => {
           const tags = [voiceRegion(v), voiceGender(v)].filter(Boolean).join(" · ");
           return `<option value="${esc(v.voiceURI)}" ${v.voiceURI === cur ? "selected" : ""}>${esc(v.name.replace(/\s*\(.*\)$/, ""))}${tags ? " · " + esc(tags) : ""}</option>`;
         }).join("")
-      : `<option value="">（这部设备没有${lang === "en" ? "英文" : "中文"}语音）</option>`;
+      : `<option value="">${t(lang === "en" ? "voice.noneEn" : "voice.noneZh")}</option>`;
   }
 }
 document.addEventListener("visibilitychange", () => {
@@ -620,6 +633,7 @@ let onSheetClose = null;
 
 function openSheet(title, html, { tall = false, onClose = null } = {}) {
   $("#sheet-title").textContent = title;
+  $("#sheet-body").onclick = null; // drop the previous sheet's handler
   $("#sheet-body").innerHTML = html;
   $("#sheet-body").scrollTop = 0;
   sheet.classList.toggle("tall", tall);
@@ -656,27 +670,27 @@ function toast(msg) {
 
 function openNavigator({ newTab = false } = {}) {
   const tab = activeTab();
-  const body = openSheet(newTab ? "在新分页打开" : "选择经文", "", { tall: true });
+  const body = openSheet(t(newTab ? "nav.titleNewTab" : "nav.title"), "", { tall: true });
   let pick = { b: null, c: null };
 
   const draw = () => {
     let html = `<form class="search" id="nav-search">
         ${ICON.search}
-        <input id="nav-q" type="search" placeholder="输入经文，如 约3:16、罗8、John 3:16" autocomplete="off" enterkeyhint="go">
-        <button class="go" type="submit">前往</button>
+        <input id="nav-q" type="search" placeholder="${t("nav.placeholder")}" autocomplete="off" enterkeyhint="go">
+        <button class="go" type="submit">${t("nav.go")}</button>
       </form>`;
     if (pick.b === null) {
-      html += `<div class="nav-section">旧约 Old Testament</div><div class="grid">${bookButtons(0, 39, tab.b)}</div>
-        <div class="nav-section">新约 New Testament</div><div class="grid">${bookButtons(39, 66, tab.b)}</div>`;
+      html += `<div class="nav-section">${t("nav.ot")}</div><div class="grid">${bookButtons(0, 39, tab.b)}</div>
+        <div class="nav-section">${t("nav.nt")}</div><div class="grid">${bookButtons(39, 66, tab.b)}</div>`;
     } else if (pick.c === null) {
       const book = BOOKS[pick.b];
-      html += `<div class="nav-crumb"><button data-back="book">‹ 全部书卷</button><strong>${esc(bookName(pick.b))}</strong><span class="hint">${esc(book.en)}</span></div>
+      html += `<div class="nav-crumb"><button data-back="book">${t("nav.allBooks")}</button><strong>${esc(bookName(pick.b))}</strong><span class="hint">${esc(otherBookName(pick.b))}</span></div>
         <div class="grid nums">${range(book.chapters).map((c) => `<button data-c="${c}" class="${pick.b === tab.b && c === tab.c ? "cur" : ""}">${c}</button>`).join("")}</div>`;
     } else {
       const n = (async () => (await getChapter(state.settings.zh, pick.b, pick.c))?.length || 0)();
-      html += `<div class="nav-crumb"><button data-back="chapter">‹ ${esc(bookName(pick.b))}</button><strong>第 ${pick.c} ${pick.b === 18 ? "篇" : "章"}</strong>
-        <button data-v="1" style="margin-left:auto">读整章</button></div>
-        <div class="grid nums" id="verse-grid"><div class="hint">载入中…</div></div>`;
+      html += `<div class="nav-crumb"><button data-back="chapter">‹ ${esc(bookName(pick.b))}</button><strong>${t(pick.b === 18 ? "nav.psalm" : "nav.chapter", { c: pick.c })}</strong>
+        <button data-v="1" style="margin-left:auto">${t("nav.wholeChapter")}</button></div>
+        <div class="grid nums" id="verse-grid"><div class="hint">${t("loading")}</div></div>`;
       n.then((count) => {
         const g = $("#verse-grid", body);
         if (g) g.innerHTML = range(count).map((v) => `<button data-v="${v}">${v}</button>`).join("");
@@ -686,7 +700,7 @@ function openNavigator({ newTab = false } = {}) {
     $("#nav-search", body).onsubmit = (e) => {
       e.preventDefault();
       const r = parseRef($("#nav-q", body).value);
-      if (!r) return toast("找不到这段经文");
+      if (!r) return toast(t("nav.notFound"));
       closeSheet();
       go(r.book, r.chapter, r.verse, { flash: true, newTab });
     };
@@ -695,17 +709,17 @@ function openNavigator({ newTab = false } = {}) {
   };
 
   body.onclick = (e) => {
-    const t = e.target.closest("button");
-    if (!t || t.closest("form")) return;
-    if (t.dataset.back === "book") pick = { b: null, c: null };
-    else if (t.dataset.back === "chapter") pick.c = null;
-    else if (t.dataset.b) {
-      pick.b = Number(t.dataset.b);
+    const el = e.target.closest("button");
+    if (!el || el.closest("form")) return;
+    if (el.dataset.back === "book") pick = { b: null, c: null };
+    else if (el.dataset.back === "chapter") pick.c = null;
+    else if (el.dataset.b) {
+      pick.b = Number(el.dataset.b);
       if (BOOKS[pick.b].chapters === 1) pick.c = 1;
-    } else if (t.dataset.c) pick.c = Number(t.dataset.c);
-    else if (t.dataset.v) {
+    } else if (el.dataset.c) pick.c = Number(el.dataset.c);
+    else if (el.dataset.v) {
       closeSheet();
-      return go(pick.b, pick.c, Number(t.dataset.v), { flash: t.dataset.v !== "1" || false, newTab });
+      return go(pick.b, pick.c, Number(el.dataset.v), { flash: el.dataset.v !== "1" || false, newTab });
     } else return;
     draw();
     $("#sheet-body").scrollTop = 0;
@@ -716,7 +730,11 @@ function openNavigator({ newTab = false } = {}) {
 const range = (n) => Array.from({ length: n }, (_, i) => i + 1);
 const bookButtons = (from, to, cur) =>
   BOOKS.slice(from, to)
-    .map((b) => `<button data-b="${b.i}" class="${b.i === cur ? "cur" : ""}">${esc(trad() ? b.zht.replace(/[書記]$/, "") : b.zh.replace(/[书记]$/, ""))}<small>${esc(b.enAbbr)}</small></button>`)
+    .map((b) => {
+      const zh = trad() ? b.zht.replace(/[書記]$/, "") : b.zh.replace(/[书记]$/, "");
+      const [main, sub] = isEn() ? [b.enAbbr, zh] : [zh, b.enAbbr];
+      return `<button data-b="${b.i}" class="${b.i === cur ? "cur" : ""}">${esc(main)}<small>${esc(sub)}</small></button>`;
+    })
     .join("");
 
 $("#btn-ref").onclick = () => openNavigator();
@@ -730,14 +748,14 @@ function openNote(v) {
   const verseEl = chapterEl.querySelector(`.v[data-v="${v}"]`);
   const zh = verseEl?.querySelector(".zh .t")?.textContent || "";
   const en = verseEl?.querySelector(".en .t")?.textContent || "";
-  const body = openSheet("笔记", `
-    <div class="note-ref">${esc(refText(b, c, v))} · ${esc(BOOKS[b].en)} ${c}:${v}</div>
+  const body = openSheet(t("note.title"), `
+    <div class="note-ref">${esc(refText(b, c, v))} · ${esc(otherRef(b, c, v))}</div>
     <div class="note-verse">${esc(zh)}${en ? `<div class="hint" style="margin-top:4px">${esc(en)}</div>` : ""}</div>
-    <textarea class="note-input" id="note-text" placeholder="写下你的领受、默想或讲道笔记…">${esc(existing?.text || "")}</textarea>
+    <textarea class="note-input" id="note-text" placeholder="${t("note.placeholder")}">${esc(existing?.text || "")}</textarea>
     <div class="note-actions">
-      ${existing ? '<button class="btn danger" id="note-del">删除</button>' : ""}
-      <button class="btn" id="note-cancel">取消</button>
-      <button class="btn primary" id="note-save">保存</button>
+      ${existing ? `<button class="btn danger" id="note-del">${t("delete")}</button>` : ""}
+      <button class="btn" id="note-cancel">${t("cancel")}</button>
+      <button class="btn primary" id="note-save">${t("save")}</button>
     </div>`);
   const ta = $("#note-text", body);
   setTimeout(() => ta.focus(), 250);
@@ -750,7 +768,7 @@ function openNote(v) {
     closeSheet();
     rerenderVerse(v);
     clearSelection();
-    toast(text ? "笔记已保存" : "笔记已删除");
+    toast(t(text ? "toast.noteSaved" : "toast.noteDeleted"));
   };
   const del = $("#note-del", body);
   if (del) del.onclick = () => {
@@ -759,7 +777,7 @@ function openNote(v) {
     closeSheet();
     rerenderVerse(v);
     clearSelection();
-    toast("笔记已删除");
+    toast(t("toast.noteDeleted"));
   };
 }
 
@@ -768,16 +786,16 @@ function openNote(v) {
 let libTab = "bookmarks";
 
 function openLibrary() {
-  const body = openSheet("我的", "", { tall: true });
+  const body = openSheet(t("lib.title"), "", { tall: true });
   const draw = () => {
     body.innerHTML = `<div class="seg full" id="lib-seg">
-        ${[["bookmarks", "书签"], ["notes", "笔记"], ["marks", "画线"], ["history", "历史"]]
-          .map(([id, label]) => `<button data-lib="${id}" class="${libTab === id ? "on" : ""}">${label}</button>`).join("")}
+        ${["bookmarks", "notes", "marks", "history"]
+          .map((id) => `<button data-lib="${id}" class="${libTab === id ? "on" : ""}">${t("lib." + id)}</button>`).join("")}
       </div><div id="lib-list"></div>`;
     $("#lib-seg", body).onclick = (e) => {
-      const t = e.target.closest("[data-lib]");
-      if (!t) return;
-      libTab = t.dataset.lib;
+      const el = e.target.closest("[data-lib]");
+      if (!el) return;
+      libTab = el.dataset.lib;
       draw();
     };
     const list = $("#lib-list", body);
@@ -789,7 +807,7 @@ function openLibrary() {
       e.stopPropagation();
       const [kind, k] = del.dataset.del.split("|");
       if (kind === "bm") delete state.bookmarks[k];
-      if (kind === "note" && confirm("删除这条笔记？")) delete state.notes[k];
+      if (kind === "note" && confirm(t("confirm.deleteNote"))) delete state.notes[k];
       if (kind === "mark") delete state.marks[k];
       persist("bookmarks", "notes", "marks");
       draw();
@@ -826,48 +844,48 @@ function emptyState(text) {
 }
 
 function drawBookmarks(list) {
-  const keys = sortedKeys(state.bookmarks, (t) => t);
-  if (!keys.length) return (list.innerHTML = emptyState("还没有书签。<br>点选经节后按「书签」即可加入。"));
+  const keys = sortedKeys(state.bookmarks, (ts) => ts);
+  if (!keys.length) return (list.innerHTML = emptyState(t("empty.bookmarks")));
   list.innerHTML = `<ul class="list">${keys.map((k) => {
     const { b, c, v } = parseKey(k);
     return `<li><div class="row"><button class="main" data-open="${k}" style="text-align:left">
         <div class="ref">${esc(refText(b, c, v))}</div><div class="sub" data-snippet="${k}"></div></button>
-        <button class="del" data-del="bm|${k}" aria-label="删除">${ICON.trash}</button></div></li>`;
+        <button class="del" data-del="bm|${k}" aria-label="${t("delete")}">${ICON.trash}</button></div></li>`;
   }).join("")}</ul>`;
   fillSnippets(list);
 }
 
 function drawNotes(list) {
   const keys = sortedKeys(state.notes, (n) => n.t);
-  if (!keys.length) return (list.innerHTML = emptyState("还没有笔记。<br>点选经节后按「笔记」即可记录。"));
+  if (!keys.length) return (list.innerHTML = emptyState(t("empty.notes")));
   list.innerHTML = `<ul class="list">${keys.map((k) => {
     const { b, c, v } = parseKey(k);
     const n = state.notes[k];
     return `<li><div class="row"><button class="main" data-open="${k}" style="text-align:left">
         <div class="ref">${esc(refText(b, c, v))} <span class="hint">· ${fmtDate(n.t)}</span></div>
         <div class="sub note">${esc(n.text)}</div></button>
-        <button class="del" data-del="note|${k}" aria-label="删除">${ICON.trash}</button></div></li>`;
+        <button class="del" data-del="note|${k}" aria-label="${t("delete")}">${ICON.trash}</button></div></li>`;
   }).join("")}</ul>`;
 }
 
 function drawMarks(list) {
   const keys = sortedKeys(state.marks, (m) => m.t || 0);
-  if (!keys.length) return (list.innerHTML = emptyState("还没有画线。<br>点选经节后选择颜色即可标记。"));
+  if (!keys.length) return (list.innerHTML = emptyState(t("empty.marks")));
   list.innerHTML = `<ul class="list">${keys.map((k) => {
     const { b, c, v } = parseKey(k);
     const m = state.marks[k];
     const color = m.hl || m.ul;
     const style = m.hl ? `background:var(--hl-${m.hl})` : `border:2px solid var(--ul-${m.ul})`;
-    return `<li><div class="row"><span class="dot" style="${style}" title="${COLOR_NAMES[color] || ""}"></span>
+    return `<li><div class="row"><span class="dot" style="${style}" title="${color ? t("color." + color) : ""}"></span>
         <button class="main" data-open="${k}" style="text-align:left">
-        <div class="ref">${esc(refText(b, c, v))}${m.ul ? ' <span class="hint">· 下划线</span>' : ""}</div><div class="sub" data-snippet="${k}"></div></button>
-        <button class="del" data-del="mark|${k}" aria-label="删除">${ICON.trash}</button></div></li>`;
+        <div class="ref">${esc(refText(b, c, v))}${m.ul ? ` <span class="hint">· ${t("lib.underline")}</span>` : ""}</div><div class="sub" data-snippet="${k}"></div></button>
+        <button class="del" data-del="mark|${k}" aria-label="${t("delete")}">${ICON.trash}</button></div></li>`;
   }).join("")}</ul>`;
   fillSnippets(list);
 }
 
 function drawHistory(list) {
-  if (!state.history.length) return (list.innerHTML = emptyState("还没有阅读记录。"));
+  if (!state.history.length) return (list.innerHTML = emptyState(t("empty.history")));
   let html = "", day = "";
   for (const h of state.history.slice(0, 400)) {
     const d = fmtDay(h.t);
@@ -879,33 +897,32 @@ function drawHistory(list) {
     html += `<li><button class="row" data-open="${vkey(h.b, h.c, h.v)}">
       <span class="time">${fmtTime(h.t)}</span>
       <span class="main"><span class="ref">${esc(refText(h.b, h.c, h.v))}</span>
-      <span class="sub" style="display:block">${esc(BOOKS[h.b].en)} ${h.c}:${h.v}</span></span></button></li>`;
+      <span class="sub" style="display:block">${esc(otherRef(h.b, h.c, h.v))}</span></span></button></li>`;
   }
-  html += `</ul><div style="text-align:center;margin-top:18px"><button class="btn danger" id="clear-history">清除全部历史</button></div>`;
+  html += `</ul><div style="text-align:center;margin-top:18px"><button class="btn danger" id="clear-history">${t("history.clear")}</button></div>`;
   list.innerHTML = html;
   $("#clear-history", list).onclick = (e) => {
     e.stopPropagation();
-    if (!confirm("确定清除全部阅读历史？")) return;
+    if (!confirm(t("confirm.clearHistory"))) return;
     state.history = [];
     persist("history");
     drawHistory(list);
   };
 }
 
-const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
-function fmtDay(t) {
-  const d = new Date(t);
+function fmtDay(ts) {
+  const d = new Date(ts);
   const today = new Date();
   const yest = new Date(Date.now() - 864e5);
   const same = (a, z) => a.toDateString() === z.toDateString();
-  const label = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 星期${WEEK[d.getDay()]}`;
-  if (same(d, today)) return `今天 · ${label}`;
-  if (same(d, yest)) return `昨天 · ${label}`;
+  const label = new Intl.DateTimeFormat(LOCALE[uiLang()], { year: "numeric", month: "long", day: "numeric", weekday: "long" }).format(d);
+  if (same(d, today)) return `${t("today")} · ${label}`;
+  if (same(d, yest)) return `${t("yesterday")} · ${label}`;
   return label;
 }
 const pad = (n) => String(n).padStart(2, "0");
-const fmtTime = (t) => { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-const fmtDate = (t) => { const d = new Date(t); return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${fmtTime(t)}`; };
+const fmtTime = (ts) => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const fmtDate = (ts) => { const d = new Date(ts); return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${fmtTime(ts)}`; };
 
 $("#btn-library").onclick = openLibrary;
 
@@ -914,32 +931,41 @@ $("#btn-library").onclick = openLibrary;
 async function openIntro() {
   const { b } = activeTab();
   const book = BOOKS[b];
-  const intro = INTRO[b];
+  const intro = intros()[b];
   const [kc, kv] = intro.key.split(":").map(Number);
-  const body = openSheet("导读 · Introduction", `<div class="intro">
+  // Interface language first, the other language underneath.
+  const pair = (zh, en) => (isEn() ? [en, zh] : [zh, en]);
+  const fact = (label, zh, en) => {
+    const [main, sub] = pair(zh, en);
+    return `<dt>${t(label)}</dt><dd>${esc(main)}<span class="e">${esc(sub)}</span></dd>`;
+  };
+  const [sumMain, sumSub] = pair(intro.zh.summary, intro.en.summary);
+  const body = openSheet(t("intro.title"), `<div class="intro">
     <h3>${esc(bookName(b))}</h3>
-    <div class="en-title">${esc(book.en)} · ${book.nt ? "新约 New Testament" : "旧约 Old Testament"} · ${book.chapters} ${b === 18 ? "篇" : "章"}</div>
+    <div class="en-title">${esc(otherBookName(b))} · ${t(book.nt ? "intro.nt" : "intro.ot")} · ${t(b === 18 ? "intro.psalms" : "intro.chapters", { n: book.chapters })}</div>
     <dl class="facts">
-      <dt>作者</dt><dd>${esc(intro.zh.author)}<span class="e">${esc(intro.en.author)}</span></dd>
-      <dt>年代</dt><dd>${esc(intro.zh.date)}<span class="e">${esc(intro.en.date)}</span></dd>
-      <dt>主题</dt><dd>${esc(intro.zh.theme)}<span class="e">${esc(intro.en.theme)}</span></dd>
+      ${fact("intro.author", intro.zh.author, intro.en.author)}
+      ${fact("intro.date", intro.zh.date, intro.en.date)}
+      ${fact("intro.theme", intro.zh.theme, intro.en.theme)}
     </dl>
-    <h4>概要 SUMMARY</h4>
-    <p>${esc(intro.zh.summary)}</p>
-    <p class="e">${esc(intro.en.summary)}</p>
-    <h4>钥节 KEY VERSE</h4>
+    <h4>${t("intro.summary")}</h4>
+    <p class="${isEn() ? "e-main" : ""}">${esc(sumMain)}</p>
+    <p class="e">${esc(sumSub)}</p>
+    <h4>${t("intro.key")}</h4>
     <button class="keyverse" data-go="${kc}:${kv}" style="text-align:left;width:100%">
-      <div class="r">${esc(refText(b, kc, kv))} · ${esc(book.enAbbr)} ${kc}:${kv}</div>
+      <div class="r">${esc(refText(b, kc, kv))} · ${esc(otherRef(b, kc, kv))}</div>
       <div id="kv-zh">…</div><div id="kv-en" class="hint" style="font-family:Georgia,serif;margin-top:4px"></div>
     </button>
-    <h4>大纲 OUTLINE</h4>
-    <div class="outline">${intro.outline.map(([c, zh, en]) => `<button data-go="${c}:1">
-        <span class="c">${b === 18 ? "第" + c + "篇" : c + " 章"}</span><span>${esc(zh)}<span class="e">${esc(en)}</span></span></button>`).join("")}</div>
+    <h4>${t("intro.outline")}</h4>
+    <div class="outline">${intro.outline.map(([c, zh, en]) => {
+      const [main, sub] = pair(zh, en);
+      return `<button data-go="${c}:1"><span class="c">${t(b === 18 ? "intro.psalm" : "intro.chapter", { c })}</span><span>${esc(main)}<span class="e">${esc(sub)}</span></span></button>`;
+    }).join("")}</div>
   </div>`, { tall: true });
   body.onclick = (e) => {
-    const t = e.target.closest("[data-go]");
-    if (!t) return;
-    const [c, v] = t.dataset.go.split(":").map(Number);
+    const el = e.target.closest("[data-go]");
+    if (!el) return;
+    const [c, v] = el.dataset.go.split(":").map(Number);
     closeSheet();
     go(b, c, v, { flash: v > 1 });
   };
@@ -975,60 +1001,82 @@ function openSettings(focusImport = false) {
   const enOpts = versions.filter((v) => v.lang === "en");
   const enId = englishVersion();
   const imported = versions.filter((v) => !BUILTIN.some((b) => b.id === v.id));
-  const body = openSheet("设置", `
-    <div class="set-title">字体大小 FONT SIZE</div>
-    <div class="set-group">
-      <div class="set-row"><div class="font-row"><span class="a1">A</span>
-        <input type="range" id="fs" min="14" max="32" step="1" value="${s.fontSize}" aria-label="字体大小">
-        <span class="a2">A</span></div><strong id="fs-val" style="min-width:34px;text-align:right">${s.fontSize}</strong></div>
-      <div class="font-preview"><div class="zh">神爱世人，甚至将他的独生子赐给他们。</div>
-        <div class="en">For God so loved the world that he gave his one and only Son.</div></div>
-    </div>
-
-    <div class="set-title">外观 APPEARANCE</div>
+  const seg = (id, key, options) =>
+    `<div class="seg" id="${id}">${options.map(([v, label]) => `<button data-v="${v}" class="${String(s[key]) === String(v) ? "on" : ""}">${label}</button>`).join("")}</div>`;
+  const body = openSheet(t("set.title"), `
+    <div class="set-title">界面语言 · LANGUAGE</div>
     <div class="set-group"><div class="set-row">
-      <div class="seg full" id="theme" style="flex:1">
-        ${[["system", "跟随系统"], ["light", "浅色"], ["dark", "深色"]].map(([v, l]) => `<button data-theme="${v}" class="${s.theme === v ? "on" : ""}">${l}</button>`).join("")}
+      <div class="seg full" id="ui-lang" style="flex:1">
+        ${UI_LANGS.map(([v, label]) => `<button data-v="${v}" class="${uiLang() === v ? "on" : ""}">${label}</button>`).join("")}
       </div></div></div>
 
-    <div class="set-title">朗读 READ ALOUD</div>
+    <div class="set-title">${t("set.font")}</div>
     <div class="set-group">
-      <div class="set-row"><span class="lbl" style="white-space:nowrap">朗读内容</span>
-        <div class="seg" id="tts-content">${[["both", "中英"], ["zh", "中文"], ["en", "英文"]].map(([v, l]) => `<button data-v="${v}" class="${s.ttsContent === v ? "on" : ""}">${l}</button>`).join("")}</div></div>
-      <div class="set-row"><label for="voice-zh" style="white-space:nowrap">中文声音</label>
-        <div class="voice-pick"><select id="voice-zh"></select><button class="btn" data-preview="zh" aria-label="试听中文声音">▶</button></div></div>
-      <div class="set-row"><label for="voice-en" style="white-space:nowrap">英文声音</label>
-        <div class="voice-pick"><select id="voice-en"></select><button class="btn" data-preview="en" aria-label="试听英文声音">▶</button></div></div>
-      <div class="set-row"><span class="lbl" style="white-space:nowrap">语速</span>
-        <div class="seg" id="tts-rate">${RATES.map((r) => `<button data-v="${r}" class="${s.ttsRate === r ? "on" : ""}">${r}</button>`).join("")}</div></div>
-      <div class="set-row"><span class="lbl hint" style="font-size:13px;line-height:1.6">想要更多声音（男声、粤语、高品质）？<br>
-        iPhone/iPad：设置 → 辅助功能 → 朗读内容 → 声音，下载后回来这里选择。<br>
-        Android：设置 → 文字转语音输出，安装语音数据。</span></div>
+      <div class="set-row"><div class="font-row"><span class="a1">A</span>
+        <input type="range" id="fs" min="14" max="32" step="1" value="${s.fontSize}" aria-label="${t("set.font")}">
+        <span class="a2">A</span></div><strong id="fs-val" style="min-width:34px;text-align:right">${s.fontSize}</strong></div>
+      <div class="font-preview"><div class="zh">${sampleZh()}</div>
+        <div class="en">${SAMPLE_EN}</div></div>
     </div>
 
-    <div class="set-title">译本 VERSIONS</div>
+    <div class="set-title">${t("set.appearance")}</div>
+    <div class="set-group"><div class="set-row">
+      <div class="seg full" id="theme" style="flex:1">
+        ${["system", "light", "dark"].map((v) => `<button data-theme="${v}" class="${s.theme === v ? "on" : ""}">${t("theme." + v)}</button>`).join("")}
+      </div></div></div>
+
+    <div class="set-title">${t("set.tts")}</div>
     <div class="set-group">
-      <div class="set-row"><label for="ver-zh">中文</label>
+      <div class="set-row"><span class="lbl" style="white-space:nowrap">${t("tts.content")}</span>
+        ${seg("tts-content", "ttsContent", [["both", t("tts.both")], ["zh", t("tts.zh")], ["en", t("tts.en")]])}</div>
+      <div class="set-row"><label for="voice-zh" style="white-space:nowrap">${t("tts.zhVoice")}</label>
+        <div class="voice-pick"><select id="voice-zh"></select><button class="btn" data-preview="zh" aria-label="${t("tts.previewZh")}">▶</button></div></div>
+      <div class="set-row"><label for="voice-en" style="white-space:nowrap">${t("tts.enVoice")}</label>
+        <div class="voice-pick"><select id="voice-en"></select><button class="btn" data-preview="en" aria-label="${t("tts.previewEn")}">▶</button></div></div>
+      <div class="set-row"><span class="lbl" style="white-space:nowrap">${t("tts.rate")}</span>
+        ${seg("tts-rate", "ttsRate", RATES.map((r) => [r, r]))}</div>
+      <div class="set-row"><span class="lbl hint" style="font-size:13px;line-height:1.6">${t("tts.moreVoices")}</span></div>
+    </div>
+
+    <div class="set-title">${t("set.versions")}</div>
+    <div class="set-group">
+      <div class="set-row"><label for="ver-zh">${t("ver.zh")}</label>
         <select id="ver-zh">${zhOpts.map((v) => `<option value="${v.id}" ${v.id === s.zh ? "selected" : ""}>${esc(v.name)}</option>`).join("")}</select></div>
-      <div class="set-row"><label for="ver-en">English</label>
-        <select id="ver-en">${enOpts.length ? enOpts.map((v) => `<option value="${v.id}" ${v.id === enId ? "selected" : ""}>${esc(v.name)}</option>`).join("") : '<option value="">（未导入）</option>'}</select></div>
-      ${imported.map((v) => `<div class="set-row"><div class="lbl">${esc(v.name)}<small>已导入 · 只保存在这部设备</small></div>
-        <button class="btn danger" data-remove="${v.id}">移除</button></div>`).join("")}
-      <div class="set-row"><div class="lbl">导入译本<small>选择 JSON 文件（例如 en_niv.json）</small></div>
-        <button class="btn primary" id="import-btn">导入…</button></div>
+      <div class="set-row"><label for="ver-en">${t("ver.en")}</label>
+        <select id="ver-en">${enOpts.length ? enOpts.map((v) => `<option value="${v.id}" ${v.id === enId ? "selected" : ""}>${esc(v.name)}</option>`).join("") : `<option value="">${t("ver.none")}</option>`}</select></div>
+      ${imported.map((v) => `<div class="set-row"><div class="lbl">${esc(v.name)}<small>${t("ver.imported")}</small></div>
+        <button class="btn danger" data-remove="${v.id}">${t("remove")}</button></div>`).join("")}
+      <div class="set-row"><div class="lbl">${t("ver.import")}<small>${t("ver.importHint")}</small></div>
+        <button class="btn primary" id="import-btn">${t("importMore")}</button></div>
     </div>
     <div id="import-form"></div>
 
-    <div class="set-title">数据 DATA</div>
+    <div class="set-title">${t("set.data")}</div>
     <div class="set-group">
-      <div class="set-row"><div class="lbl">备份<small>导出书签、笔记、画线和历史</small></div><button class="btn" id="backup-export">导出</button></div>
-      <div class="set-row"><div class="lbl">还原<small>从备份文件导入</small></div><button class="btn" id="backup-import">导入…</button></div>
+      <div class="set-row"><div class="lbl">${t("backup")}<small>${t("backup.hint")}</small></div><button class="btn" id="backup-export">${t("export")}</button></div>
+      <div class="set-row"><div class="lbl">${t("restore")}<small>${t("restore.hint")}</small></div><button class="btn" id="backup-import">${t("importMore")}</button></div>
     </div>
-    <p class="about">经文：《和合本》(1919) 属公有领域。导入的译本只保存在你自己的设备上，不会上传。<br>
+    <p class="about">${t("about")}<br>
       ${BUILTIN.filter((v) => v.notice).map((v) => esc(v.notice) + "<br>").join("")}
-      小贴士：点顶部的经文名称快速跳转；按「新分页」可同时打开多处经文，在不同章节之间一键切换。</p>
+      ${t("tip")}</p>
     <input type="file" id="file-version" accept=".json,application/json" hidden>
     <input type="file" id="file-backup" accept=".json,application/json" hidden>`, { tall: true });
+
+  $("#ui-lang", body).onclick = (e) => {
+    const el = e.target.closest("[data-v]");
+    if (!el || el.dataset.v === uiLang()) return;
+    s.ui = el.dataset.v;
+    persist("settings");
+    setUiLang(s.ui);
+    applyI18n();
+    renderColors();
+    updateActionbar();
+    updatePlayer();
+    render({ scrollTo: topVisibleVerse() || activeTab().v });
+    const scroll = $("#sheet-body").scrollTop;
+    openSettings();
+    $("#sheet-body").scrollTop = scroll;
+  };
 
   const fs = $("#fs", body);
   fs.oninput = () => {
@@ -1038,18 +1086,18 @@ function openSettings(focusImport = false) {
     persist("settings");
   };
   $("#theme", body).onclick = (e) => {
-    const t = e.target.closest("[data-theme]");
-    if (!t) return;
-    s.theme = t.dataset.theme;
-    $$("#theme button", body).forEach((x) => x.classList.toggle("on", x === t));
+    const el = e.target.closest("[data-theme]");
+    if (!el) return;
+    s.theme = el.dataset.theme;
+    $$("#theme button", body).forEach((x) => x.classList.toggle("on", x === el));
     applySettings();
     persist("settings");
   };
   const segPick = (id, key, cast = String) => ($(id, body).onclick = (e) => {
-    const t = e.target.closest("[data-v]");
-    if (!t) return;
-    s[key] = cast(t.dataset.v);
-    $$(`${id} button`, body).forEach((x) => x.classList.toggle("on", x === t));
+    const el = e.target.closest("[data-v]");
+    if (!el) return;
+    s[key] = cast(el.dataset.v);
+    $$(`${id} button`, body).forEach((x) => x.classList.toggle("on", x === el));
     persist("settings");
     updatePlayer();
   });
@@ -1058,17 +1106,17 @@ function openSettings(focusImport = false) {
   $("#voice-zh", body).onchange = (e) => { s.ttsZhVoice = e.target.value; persist("settings"); preview("zh"); };
   $("#voice-en", body).onchange = (e) => { s.ttsEnVoice = e.target.value; persist("settings"); preview("en"); };
   const preview = (lang) => {
-    if (!synth) return toast("这个浏览器不支持朗读");
+    if (!synth) return toast(t("tts.unsupported"));
     if (tts.on) ttsStop();
     synth.cancel();
-    synth.speak(utter(lang === "en" ? "For God so loved the world that he gave his one and only Son." : "神爱世人，甚至将他的独生子赐给他们。", lang));
+    synth.speak(utter(lang === "en" ? SAMPLE_EN : sampleZh(), lang));
   };
   $$("[data-preview]", body).forEach((b) => (b.onclick = () => preview(b.dataset.preview)));
   segPick("#tts-rate", "ttsRate", Number);
   $("#ver-zh", body).onchange = (e) => { s.zh = e.target.value; persist("settings"); render(); prefetchVersion(s.zh); };
   $("#ver-en", body).onchange = (e) => { s.en = e.target.value || null; persist("settings"); render(); };
   $$("[data-remove]", body).forEach((btn) => (btn.onclick = async () => {
-    if (!confirm("从这部设备移除这个译本？")) return;
+    if (!confirm(t("confirm.removeVersion"))) return;
     await removeVersion(btn.dataset.remove);
     if (s.en === btn.dataset.remove) s.en = null;
     if (s.zh === btn.dataset.remove) s.zh = "cuv";
@@ -1085,9 +1133,9 @@ function openSettings(focusImport = false) {
     const meta = guessMeta(file.name);
     const form = $("#import-form", body);
     form.innerHTML = `<div class="set-group" style="padding:14px">
-      <div class="field">名称<input id="imp-name" value="${esc(meta.short)}"></div>
-      <div class="field">语言<select id="imp-lang"><option value="en" ${meta.lang === "en" ? "selected" : ""}>English</option><option value="zh" ${meta.lang === "zh" ? "selected" : ""}>中文</option></select></div>
-      <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" id="imp-cancel">取消</button><button class="btn primary" id="imp-ok">导入</button></div>
+      <div class="field">${t("imp.name")}<input id="imp-name" value="${esc(meta.short)}"></div>
+      <div class="field">${t("imp.lang")}<select id="imp-lang"><option value="en" ${meta.lang === "en" ? "selected" : ""}>English</option><option value="zh" ${meta.lang === "zh" ? "selected" : ""}>中文</option></select></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" id="imp-cancel">${t("cancel")}</button><button class="btn primary" id="imp-ok">${t("import")}</button></div>
     </div>`;
     form.scrollIntoView({ behavior: "smooth", block: "center" });
     $("#imp-cancel", form).onclick = () => { form.innerHTML = ""; fileVersion.value = ""; };
@@ -1095,19 +1143,19 @@ function openSettings(focusImport = false) {
       const name = $("#imp-name", form).value.trim() || meta.short;
       const lang = $("#imp-lang", form).value;
       $("#imp-ok", form).disabled = true;
-      $("#imp-ok", form).textContent = "导入中…";
+      $("#imp-ok", form).textContent = t("imp.importing");
       try {
         const v = await importVersion(file, { name, short: name.slice(0, 12), lang });
         if (lang === "en") s.en = v.id;
         else s.zh = v.id;
         persist("settings");
-        toast(`已导入 ${name}`);
+        toast(t("toast.imported", { name }));
         render();
         openSettings();
       } catch (err) {
-        alert("导入失败：" + err.message);
+        alert(t("err.import") + err.message);
         $("#imp-ok", form).disabled = false;
-        $("#imp-ok", form).textContent = "导入";
+        $("#imp-ok", form).textContent = t("import");
       }
     };
   };
@@ -1125,10 +1173,10 @@ function openSettings(focusImport = false) {
   fileBackup.onchange = async () => {
     try {
       importBackup(JSON.parse(await fileBackup.files[0].text()));
-      toast("已还原备份");
+      toast(t("toast.restored"));
       render();
     } catch (err) {
-      alert("还原失败：" + err.message);
+      alert(t("err.restore") + err.message);
     }
   };
   if (focusImport) setTimeout(() => $("#import-btn", body).scrollIntoView({ block: "center" }), 50);
@@ -1142,6 +1190,10 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applySetti
    ============================================================ */
 
 (async function start() {
+  if (!state.settings.ui) state.settings.ui = defaultUiLang();
+  setUiLang(state.settings.ui);
+  applyI18n();
+  renderColors();
   applySettings();
   await loadImported();
   if (!hasVersion(state.settings.zh)) state.settings.zh = "cuv";
