@@ -1,6 +1,6 @@
 // Offline support: app shell is precached; Bible text is cached as it is read
 // (and prefetched in the background by the app).
-const VERSION = "v4";
+const VERSION = "v5";
 const SHELL = `shell-${VERSION}`;
 const DATA = "data-v1"; // bump only when the text files change
 
@@ -22,6 +22,8 @@ const SHELL_FILES = [
   "icons/icon-192.png",
   "icons/icon-512.png",
   "icons/apple-touch-icon.png",
+  "icons/logo.png",
+  "icons/favicon-64.png",
 ];
 
 self.addEventListener("install", (e) => {

@@ -1,5 +1,5 @@
 import { BOOKS, parseRef, toTrad } from "./books.js";
-import { t, applyI18n, setUiLang, uiLang, isEn, intros, defaultUiLang, UI_LANGS, LOCALE } from "./i18n.js";
+import { t, applyI18n, setUiLang, uiLang, isEn, intros, UI_LANGS, LOCALE } from "./i18n.js";
 import { state, persist, vkey, parseKey, recordHistory, exportBackup, importBackup } from "./store.js";
 import {
   BUILTIN, allVersions, hasVersion, versionMeta, getChapter, loadImported,
@@ -259,7 +259,96 @@ function renderTabs() {
   active?.scrollIntoView({ inline: "nearest", block: "nearest" });
 }
 
+/* ---------- Reorder tabs by dragging (long-press on touch screens) ---------- */
+
+const strip = $("#tabstrip");
+const GAP = 6;
+let drag = null;
+let justDragged = false;
+
+strip.addEventListener("pointerdown", (e) => {
+  const el = e.target.closest(".tab");
+  if (!el || e.target.closest("[data-close]") || e.button > 0 || state.tabs.length < 2) return;
+  drag = { el, from: Number(el.dataset.tab), to: Number(el.dataset.tab), x0: e.clientX, y0: e.clientY, id: e.pointerId, active: false, mouse: e.pointerType === "mouse" };
+  if (!drag.mouse) drag.timer = setTimeout(startDrag, 350);
+});
+
+function startDrag() {
+  if (!drag) return;
+  drag.active = true;
+  drag.tabs = $$(".tab", strip);
+  drag.rects = drag.tabs.map((t) => t.getBoundingClientRect());
+  drag.el.classList.add("dragging");
+  strip.classList.add("sorting");
+  try { drag.el.setPointerCapture(drag.id); } catch {}
+  navigator.vibrate?.(15);
+}
+
+strip.addEventListener("pointermove", (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = e.clientX - drag.x0;
+  if (!drag.active) {
+    const moved = Math.hypot(dx, e.clientY - drag.y0) > 8;
+    if (moved && drag.mouse) startDrag();
+    else if (moved) cancelDrag(); // a swipe: let the strip scroll
+    if (!drag?.active) return;
+  }
+  drag.el.style.transform = `translateX(${dx}px) scale(1.06)`;
+  // Where would the dragged tab land?
+  const r = drag.rects[drag.from];
+  const center = r.left + r.width / 2 + dx;
+  let to = drag.from;
+  drag.rects.forEach((rr, k) => {
+    const mid = rr.left + rr.width / 2;
+    if (k < drag.from && center < mid) to = Math.min(to, k);
+    if (k > drag.from && center > mid) to = Math.max(to, k);
+  });
+  drag.to = to;
+  const shift = r.width + GAP;
+  drag.tabs.forEach((t, k) => {
+    if (k === drag.from) return;
+    const off = drag.from < k && k <= to ? -shift : to <= k && k < drag.from ? shift : 0;
+    t.style.transform = off ? `translateX(${off}px)` : "";
+  });
+  // Scroll the strip when dragging near its edges.
+  const sr = strip.getBoundingClientRect();
+  if (e.clientX < sr.left + 30) strip.scrollLeft -= 8;
+  else if (e.clientX > sr.right - 30) strip.scrollLeft += 8;
+});
+
+// Stop the page/strip from scrolling while a tab is being dragged.
+strip.addEventListener("touchmove", (e) => { if (drag?.active) e.preventDefault(); }, { passive: false });
+strip.addEventListener("contextmenu", (e) => { if (e.target.closest(".tab")) e.preventDefault(); });
+
+function cancelDrag() {
+  if (!drag) return;
+  clearTimeout(drag.timer);
+  drag.tabs?.forEach((t) => (t.style.transform = ""));
+  drag.el.classList.remove("dragging");
+  strip.classList.remove("sorting");
+  drag = null;
+}
+
+function endDrag(e) {
+  if (!drag || (e && e.pointerId !== drag.id)) return;
+  const { active, from, to } = drag;
+  cancelDrag();
+  if (!active) return;
+  justDragged = true;
+  setTimeout(() => (justDragged = false), 50);
+  if (from === to) return;
+  const current = activeTab();
+  const [moved] = state.tabs.splice(from, 1);
+  state.tabs.splice(to, 0, moved);
+  state.activeTab = state.tabs.indexOf(current);
+  persist("tabs", "activeTab");
+  renderTabs();
+}
+strip.addEventListener("pointerup", endDrag);
+strip.addEventListener("pointercancel", () => cancelDrag());
+
 $("#tabstrip").addEventListener("click", (e) => {
+  if (justDragged) return;
   const close = e.target.closest("[data-close]");
   if (close) {
     const i = Number(close.dataset.close);
@@ -668,10 +757,11 @@ function toast(msg) {
 
 /* ---------- Navigator: book → chapter → verse ---------- */
 
-function openNavigator({ newTab = false } = {}) {
+function openNavigator({ newTab = false, title = null } = {}) {
   const tab = activeTab();
-  const body = openSheet(t(newTab ? "nav.titleNewTab" : "nav.title"), "", { tall: true });
+  const body = openSheet(title || t(newTab ? "nav.titleNewTab" : "nav.title"), "", { tall: true });
   let pick = { b: null, c: null };
+  let testament = BOOKS[tab.b].nt ? "nt" : "ot";
 
   const draw = () => {
     let html = `<form class="search" id="nav-search">
@@ -680,8 +770,16 @@ function openNavigator({ newTab = false } = {}) {
         <button class="go" type="submit">${t("nav.go")}</button>
       </form>`;
     if (pick.b === null) {
-      html += `<div class="nav-section">${t("nav.ot")}</div><div class="grid">${bookButtons(0, 39, tab.b)}</div>
-        <div class="nav-section">${t("nav.nt")}</div><div class="grid">${bookButtons(39, 66, tab.b)}</div>`;
+      const recent = recentPassages(6);
+      if (recent.length) {
+        html += `<div class="nav-section">${t("nav.recent")}</div>
+          <div class="recent">${recent.map((h) => `<button data-recent="${vkey(h.b, h.c, h.v)}">${esc(shortRef(h.b, h.c, h.v > 1 ? h.v : null))}</button>`).join("")}</div>`;
+      }
+      html += `<div class="seg full nav-testament">
+          <button data-test="ot" class="${testament === "ot" ? "on" : ""}">${t("nav.ot")}<small>${t("nav.books", { n: 39 })}</small></button>
+          <button data-test="nt" class="${testament === "nt" ? "on" : ""}">${t("nav.nt")}<small>${t("nav.books", { n: 27 })}</small></button>
+        </div>
+        <div class="grid">${testament === "ot" ? bookButtons(0, 39, tab.b) : bookButtons(39, 66, tab.b)}</div>`;
     } else if (pick.c === null) {
       const book = BOOKS[pick.b];
       html += `<div class="nav-crumb"><button data-back="book">${t("nav.allBooks")}</button><strong>${esc(bookName(pick.b))}</strong><span class="hint">${esc(otherBookName(pick.b))}</span></div>
@@ -711,7 +809,13 @@ function openNavigator({ newTab = false } = {}) {
   body.onclick = (e) => {
     const el = e.target.closest("button");
     if (!el || el.closest("form")) return;
-    if (el.dataset.back === "book") pick = { b: null, c: null };
+    if (el.dataset.recent) {
+      const { b, c, v } = parseKey(el.dataset.recent);
+      closeSheet();
+      return go(b, c, v, { flash: v > 1, newTab });
+    }
+    if (el.dataset.test) testament = el.dataset.test;
+    else if (el.dataset.back === "book") pick = { b: null, c: null };
     else if (el.dataset.back === "chapter") pick.c = null;
     else if (el.dataset.b) {
       pick.b = Number(el.dataset.b);
@@ -725,6 +829,20 @@ function openNavigator({ newTab = false } = {}) {
     $("#sheet-body").scrollTop = 0;
   };
   draw();
+}
+
+/** Most recently read chapters, newest first, one entry per chapter. */
+function recentPassages(n) {
+  const seen = new Set();
+  const out = [];
+  for (const h of state.history) {
+    const k = `${h.b}.${h.c}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(h);
+    if (out.length === n) break;
+  }
+  return out;
 }
 
 const range = (n) => Array.from({ length: n }, (_, i) => i + 1);
@@ -1186,11 +1304,62 @@ $("#btn-settings").onclick = () => openSettings();
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applySettings);
 
 /* ============================================================
+   First-run welcome: language, appearance, then where to start
+   ============================================================ */
+
+function showWelcome() {
+  const el = $("#welcome");
+  const s = state.settings;
+  const draw = () => {
+    el.innerHTML = `<div class="welcome-card">
+      <img src="icons/logo.png" alt="" class="welcome-logo" width="112" height="112">
+      <h1>${t("welcome.title")}</h1>
+      <p class="welcome-sub">Holy Bible · 圣经 · 聖經</p>
+      <div class="welcome-label">${t("welcome.lang")}</div>
+      <div class="welcome-langs">${UI_LANGS.map(([v, label]) =>
+        `<button data-lang="${v}" class="${uiLang() === v ? "on" : ""}">${label}</button>`).join("")}</div>
+      <div class="welcome-label">${t("welcome.theme")}</div>
+      <div class="seg full">${["light", "dark", "system"].map((v) =>
+        `<button data-theme="${v}" class="${s.theme === v ? "on" : ""}">${t("theme." + v)}</button>`).join("")}</div>
+      <button class="btn primary welcome-go" id="welcome-go">${t("welcome.continue")}</button>
+    </div>`;
+  };
+  el.onclick = (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    if (btn.dataset.lang) {
+      s.ui = btn.dataset.lang;
+      setUiLang(s.ui);
+      applyI18n();
+      renderColors();
+      render();
+    } else if (btn.dataset.theme) {
+      s.theme = btn.dataset.theme;
+      applySettings();
+    } else if (btn.id === "welcome-go") {
+      s.onboarded = true;
+      persist("settings");
+      el.hidden = true;
+      openNavigator({ title: t("nav.start") });
+      return;
+    }
+    persist("settings");
+    draw();
+  };
+  draw();
+  el.hidden = false;
+}
+
+/* ============================================================
    Start
    ============================================================ */
 
 (async function start() {
-  if (!state.settings.ui) state.settings.ui = defaultUiLang();
+  // Show the welcome screen to brand-new users only (no reading history yet).
+  const firstRun = !state.settings.onboarded && !state.history.length;
+  if (!firstRun) state.settings.onboarded = true;
+  if (!state.settings.ui) state.settings.ui = "en";
+  persist("settings");
   setUiLang(state.settings.ui);
   applyI18n();
   renderColors();
@@ -1202,6 +1371,12 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applySetti
   const r = hash && parseRef(hash);
   if (r) Object.assign(activeTab(), { b: r.book, c: r.chapter, v: r.verse || 1 });
   await render({ flash: !!r?.verse });
+  if (firstRun && !r) {
+    // The default page wasn't chosen by the user, so keep it out of history.
+    state.history = [];
+    persist("history");
+    showWelcome();
+  }
   window.addEventListener("hashchange", () => {
     const r = parseRef(decodeURIComponent(location.hash.slice(1)));
     if (r) go(r.book, r.chapter, r.verse, { flash: !!r.verse });

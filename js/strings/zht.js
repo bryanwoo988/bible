@@ -62,6 +62,8 @@ export default {
   "nav.go": "前往",
   "nav.ot": "舊約",
   "nav.nt": "新約",
+  "nav.books": "{n} 卷",
+  "nav.recent": "最近查閱",
   "nav.allBooks": "‹ 全部書卷",
   "nav.wholeChapter": "讀整章",
   "nav.notFound": "找不到這段經文",
@@ -146,4 +148,9 @@ export default {
   "err.restore": "還原失敗：",
   "err.notBackup": "不是本應用的備份檔案",
   "err.format": "無法識別的檔案格式（需要 66 卷書的 JSON）",
+  "welcome.title": "歡迎",
+  "welcome.lang": "介面語言",
+  "welcome.theme": "外觀",
+  "welcome.continue": "開始",
+  "nav.start": "從哪裡開始讀？",
 };

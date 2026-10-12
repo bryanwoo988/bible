@@ -16,14 +16,6 @@ export const LOCALE = { zhs: "zh-CN", zht: "zh-TW", en: "en-US" };
 
 let current = "zhs";
 
-export function defaultUiLang() {
-  const nav = (navigator.languages || [navigator.language || ""]).join(",").toLowerCase();
-  if (/zh-(tw|hk|mo|hant)/.test(nav)) return "zht";
-  if (/(^|,)zh/.test(nav)) return "zhs";
-  if (/(^|,)en/.test(nav)) return "en";
-  return "zhs";
-}
-
 export function setUiLang(lang) {
   current = STRINGS[lang] ? lang : "zhs";
   document.documentElement.lang = HTML_LANG[current];

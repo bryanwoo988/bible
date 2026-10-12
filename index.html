@@ -12,7 +12,15 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="圣经">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="icon" href="icons/favicon-64.png" type="image/png">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="圣经 Holy Bible · 中英对照">
+  <meta property="og:description" content="和合本 + NIV 中英对照圣经，可离线使用、朗读、画线、笔记">
+  <meta property="og:url" content="https://bryanwoo988.github.io/bible/">
+  <meta property="og:image" content="https://bryanwoo988.github.io/bible/icons/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="css/app.css">
   <script>
@@ -106,6 +114,9 @@
   </section>
 
   <div class="toast" id="toast" hidden></div>
+
+  <!-- First-run welcome -->
+  <section class="welcome" id="welcome" hidden role="dialog" aria-modal="true"></section>
 
   <script type="module" src="js/app.js"></script>
 </body>

@@ -413,3 +413,37 @@ body.playing #btn-tts { color: var(--accent); }
 .chapter-title.en-first .en { font-size: calc(var(--fs) * 1.25); font-weight: 700; color: var(--text); margin: 0 0 2px; }
 .chapter-title.en-first .zh { font-size: calc(var(--fs) * 0.8); font-weight: 400; color: var(--muted); letter-spacing: 0.02em; }
 .intro p.e-main { font-family: Georgia, serif; }
+.nav-testament { margin: 0 0 14px; }
+.nav-testament button { padding: 10px 8px; font-size: 16px; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.nav-testament small { font-size: 11.5px; color: var(--muted); font-weight: 400; }
+
+/* ---------- First-run welcome ---------- */
+.welcome {
+  position: fixed; inset: 0; z-index: 70; background: var(--bg); overflow-y: auto;
+  display: flex; align-items: center; justify-content: center;
+  padding: calc(24px + var(--safe-t)) 20px calc(24px + var(--safe-b));
+}
+.welcome-card { width: 100%; max-width: 420px; text-align: center; animation: fade 0.3s; }
+.welcome-logo { width: 112px; height: 112px; margin: 0 auto 8px; display: block; }
+.welcome h1 { margin: 6px 0 2px; font-size: 30px; }
+.welcome-sub { margin: 0 0 26px; color: var(--muted); font-family: Georgia, serif; }
+.welcome-label { text-align: left; font-size: 13px; color: var(--muted); letter-spacing: 0.04em; margin: 18px 4px 8px; }
+.welcome-langs { display: flex; flex-direction: column; gap: 10px; }
+.welcome-langs button {
+  height: 56px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface);
+  font-size: 19px; font-weight: 500;
+}
+.welcome-langs button.on { border-color: var(--accent); background: var(--accent-soft); color: var(--text); font-weight: 700; }
+.welcome .seg button { padding: 12px 8px; font-size: 16px; }
+.welcome-go { width: 100%; height: 56px; margin-top: 30px; font-size: 19px; border-radius: 14px; }
+
+/* ---------- Tab drag ---------- */
+.tab { touch-action: pan-x; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: transform 0.18s ease; }
+.tab.dragging { transition: none; z-index: 2; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); transform: scale(1.06); }
+.tabstrip.sorting .tab:not(.dragging) { transition: transform 0.18s ease; }
+.recent { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.recent button {
+  height: 40px; padding: 0 14px; border-radius: 20px; background: var(--accent-soft); color: var(--text);
+  font-size: 15px; font-weight: 500; border: 1px solid transparent;
+}
+.recent button:active { border-color: var(--accent); }

@@ -62,6 +62,8 @@ export default {
   "nav.go": "前往",
   "nav.ot": "旧约",
   "nav.nt": "新约",
+  "nav.books": "{n} 卷",
+  "nav.recent": "最近查阅",
   "nav.allBooks": "‹ 全部书卷",
   "nav.wholeChapter": "读整章",
   "nav.notFound": "找不到这段经文",
@@ -146,4 +148,9 @@ export default {
   "err.restore": "还原失败：",
   "err.notBackup": "不是本应用的备份文件",
   "err.format": "无法识别的文件格式（需要 66 卷书的 JSON）",
+  "welcome.title": "欢迎",
+  "welcome.lang": "界面语言",
+  "welcome.theme": "外观",
+  "welcome.continue": "开始",
+  "nav.start": "从哪里开始读？",
 };
