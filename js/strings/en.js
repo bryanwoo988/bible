@@ -124,6 +124,7 @@ export default {
   "export": "Export",
   "restore": "Restore",
   "restore.hint": "Import from a backup file",
+  "whatsNew": "What's new",
   "about": "Chinese text: Chinese Union Version (1919), public domain. Imported versions stay on your device and are never uploaded.",
   "tip": "Tip: tap a verse to listen from there; press and hold to select a few words to highlight, add a note or copy. Tap the passage name at the top to go back to the book list; use “New tab” to keep several passages open.",
   "confirm.removeVersion": "Remove this version from this device?",

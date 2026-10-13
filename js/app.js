@@ -5,6 +5,7 @@ import {
   BUILTIN, allVersions, hasVersion, versionMeta, getChapter, loadImported,
   prefetchVersion, importVersion, removeVersion, guessMeta,
 } from "./versions.js";
+import { RELEASES, APP_VERSION } from "./releases.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -1800,7 +1801,7 @@ function openSettings(focusImport = false) {
       <div class="set-row"><div class="lbl">${t("backup")}<small>${t("backup.hint")}</small></div><button class="btn" id="backup-export">${t("export")}</button></div>
       <div class="set-row"><div class="lbl">${t("restore")}<small>${t("restore.hint")}</small></div><button class="btn" id="backup-import">${t("importMore")}</button></div>
     </div>
-    <p class="about">${t("about")}<br>
+    <p class="about"><a href="#" id="whats-new">${esc(window.WhatsNew?.label() || "v" + APP_VERSION)} · ${t("whatsNew")}</a><br>${t("about")}<br>
       ${BUILTIN.filter((v) => v.notice).map((v) => esc(v.notice) + "<br>").join("")}
       ${t("tip")}</p>
     <input type="file" id="file-version" accept=".json,application/json" hidden>
@@ -1930,6 +1931,7 @@ function openSettings(focusImport = false) {
       alert(t("err.restore") + err.message);
     }
   };
+  $("#whats-new", body).onclick = (e) => { e.preventDefault(); window.WhatsNew?.history(); };
   if (focusImport) setTimeout(() => $("#import-btn", body).scrollIntoView({ block: "center" }), 50);
 }
 
@@ -2021,6 +2023,12 @@ function refFromHash() {
   await render({ flash: !!r?.verse });
   if (firstRun && !r) showWelcome();
   else recordingHistory = true;
+  // After an update: what changed, once (whatsnew.js).
+  window.WhatsNew?.init({
+    version: APP_VERSION, releases: RELEASES, key: "bible.seenVersion",
+    lang: () => ({ zhs: "zh", zht: "zht", en: "en" })[uiLang()] || "zh",
+    isNewUser: () => firstRun,
+  });
   window.addEventListener("hashchange", () => {
     const r = refFromHash();
     if (!r) return;

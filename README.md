@@ -22,6 +22,10 @@ A simple bilingual (Chinese / English) Bible app that installs on a phone's home
 - **NIV** (`data/niv`, built with `tools/build_niv.py`): Scripture quotations taken from The Holy Bible, New International Version® NIV®. Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.™ Used by permission. All rights reserved worldwide.
 - **Other versions:** import a JSON file under 设置 → 导入译本. Imported versions are stored only on that device.
 
+## Releasing an update
+
+Add an entry at the top of `js/releases.js` (version, date, and what changed in 简体 / 繁體 / English) and bump `VERSION` in `sw.js`. After the update, the app shows the new entries once, and Settings → 更新记录 lists them all (`whatsnew.js`, shared by all of Bryan Woo's apps).
+
 ## Development
 
 It's a static site with no build step:
