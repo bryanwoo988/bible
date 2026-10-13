@@ -672,3 +672,11 @@ body.sheet-open { overflow: hidden; }
 .sheet-body { min-height: 0; flex: 1 1 auto; }
 /* The read-aloud player stays on screen over pages; leave room for it. */
 body.page-open.playing .page { padding-bottom: calc(var(--nav-h) + var(--safe-b) + 200px); }
+
+/* Settings → share: QR code, link, version */
+.share-group { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 14px; text-align: center; }
+.share-group .qr { width: 180px; height: 180px; background: #fff; padding: 8px; border-radius: 12px; }
+.share-group .share-url { font-size: 14px; word-break: break-all; color: var(--muted, inherit); }
+.share-group .btn { margin-top: 4px; }
+.share-group .ver-line { margin-top: 8px; font-size: 14px; line-height: 1.7; opacity: .8; }
+.share-group .ver-line a { color: inherit; }

@@ -3,6 +3,26 @@
 // once, and Settings → "What's new" lists them all (whatsnew.js).
 export const RELEASES = [
   {
+    v: "1.2.0", date: "2026-10-13",
+    notes: {
+      zh: [
+        "「设定」里新增二维码和「分享 App 链接」按钮，别人扫一下就能打开",
+        "「设定」显示版本号和这一版的更新日期、时间",
+        "App 开着的时候如果有新版本，会出现提示，可以选择「立即更新」或「稍后」",
+      ],
+      zht: [
+        "「設定」裡新增二維碼和「分享 App 連結」按鈕，別人掃一下就能開啟",
+        "「設定」顯示版本號和這一版的更新日期、時間",
+        "App 開著的時候如果有新版本，會出現提示，可以選擇「立即更新」或「稍後」",
+      ],
+      en: [
+        "Settings now has a QR code and a \u201cShare the app link\u201d button, so others can open the app with one scan",
+        "Settings shows the version and the date and time of this update",
+        "If a new version comes out while the app is open, a bar offers \u201cUpdate now\u201d or \u201cLater\u201d",
+      ],
+    },
+  },
+  {
     v: "1.1.0", date: "2026-10-13",
     notes: {
       zh: ["App 更新后会自动弹出「更新了什么」：版本号、日期和改动内容；在「设定」最下面可以随时查看全部更新记录"],

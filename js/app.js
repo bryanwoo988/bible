@@ -9,6 +9,7 @@ import { RELEASES, APP_VERSION } from "./releases.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+const APP_URL = "https://bryanwoo988.github.io/bible/";
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 const COLORS = ["yellow", "green", "blue", "pink", "orange"];
@@ -1796,12 +1797,22 @@ function openSettings(focusImport = false) {
     </div>
     <div id="import-form"></div>
 
+    <div class="set-title">${t("set.share")}</div>
+    <div class="set-group share-group">
+      <img class="qr" src="qr.svg" alt="${t("share.qrAlt")}" width="180" height="180">
+      <div class="hint">${t("share.scan")}</div>
+      <div class="share-url">${esc(APP_URL.replace(/^https:\/\//, ""))}</div>
+      <button class="btn primary" id="share-app">${t("share.btn")}</button>
+      <div class="ver-line">${t("set.version")} ${esc(window.WhatsNew?.label(RELEASES) || "v" + APP_VERSION)}<br>
+        <a href="#" id="whats-new">${t("whatsNew")}</a></div>
+    </div>
+
     <div class="set-title">${t("set.data")}</div>
     <div class="set-group">
       <div class="set-row"><div class="lbl">${t("backup")}<small>${t("backup.hint")}</small></div><button class="btn" id="backup-export">${t("export")}</button></div>
       <div class="set-row"><div class="lbl">${t("restore")}<small>${t("restore.hint")}</small></div><button class="btn" id="backup-import">${t("importMore")}</button></div>
     </div>
-    <p class="about"><a href="#" id="whats-new">${esc(window.WhatsNew?.label() || "v" + APP_VERSION)} · ${t("whatsNew")}</a><br>${t("about")}<br>
+    <p class="about">${t("about")}<br>
       ${BUILTIN.filter((v) => v.notice).map((v) => esc(v.notice) + "<br>").join("")}
       ${t("tip")}</p>
     <input type="file" id="file-version" accept=".json,application/json" hidden>
@@ -1932,6 +1943,18 @@ function openSettings(focusImport = false) {
     }
   };
   $("#whats-new", body).onclick = (e) => { e.preventDefault(); window.WhatsNew?.history(); };
+  $("#share-app", body).onclick = async () => {
+    if (navigator.share) {
+      try { await navigator.share({ title: t("app.title"), url: APP_URL }); } catch {}
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(APP_URL);
+      toast(t("toast.copied"));
+    } catch {
+      toast(APP_URL);
+    }
+  };
   if (focusImport) setTimeout(() => $("#import-btn", body).scrollIntoView({ block: "center" }), 50);
 }
 
@@ -2029,6 +2052,8 @@ function refFromHash() {
     lang: () => ({ zhs: "zh", zht: "zht", en: "en" })[uiLang()] || "zh",
     isNewUser: () => firstRun,
   });
+  // A newer build on the server while the app is open: offer it.
+  window.WhatsNew?.watch();
   window.addEventListener("hashchange", () => {
     const r = refFromHash();
     if (!r) return;
