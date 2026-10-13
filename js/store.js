@@ -122,15 +122,66 @@ export function exportBackup() {
   };
 }
 
+/* A backup is a file from outside the app, and its keys and colours end up
+   inside HTML attributes (data-open, data-g, style). Only entries shaped
+   exactly like the ones the app writes are taken; anything else is dropped,
+   so a doctored file cannot run script on this origin, which every app on
+   bryanwoo988.github.io shares. */
+const KEY_RE = /^\d{1,2}\.\d{1,3}\.\d{1,3}$/;
+const ID_RE = /^[a-z0-9]{1,32}$/;
+const WORD_RE = /^[\w-]{1,40}$/;
+const isNum = (n) => typeof n === "number" && Number.isFinite(n);
+const isInt = (n) => Number.isInteger(n) && n >= 0;
+const isWord = (s) => typeof s === "string" && WORD_RE.test(s);
+const isObj = (o) => o && typeof o === "object" && !Array.isArray(o);
+
+function pick(src, keyOk, clean) {
+  const out = {};
+  if (!isObj(src)) return out;
+  for (const [k, v] of Object.entries(src)) {
+    if (!keyOk(k)) continue;
+    const c = clean(v);
+    if (c !== undefined) out[k] = c;
+  }
+  return out;
+}
+
+const cleanNote = (n) => (isObj(n) && typeof n.text === "string" ? { text: n.text, t: isNum(n.t) ? n.t : 0 } : undefined);
+
+function cleanMark(m) {
+  if (!isObj(m)) return undefined;
+  const out = {};
+  if (isWord(m.hl)) out.hl = m.hl;
+  if (isWord(m.ul)) out.ul = m.ul;
+  if (!out.hl && !out.ul) return undefined;
+  if (isNum(m.t)) out.t = m.t;
+  return out;
+}
+
+function cleanRange(r) {
+  if (!isObj(r) || !isInt(r.b) || !isInt(r.c) || !isInt(r.v) || !isInt(r.s) || !isInt(r.e)) return undefined;
+  if ((r.lang !== "zh" && r.lang !== "en") || !isWord(r.ver) || typeof r.g !== "string" || !ID_RE.test(r.g)) return undefined;
+  const out = { b: r.b, c: r.c, v: r.v, lang: r.lang, s: r.s, e: r.e, ver: r.ver, g: r.g,
+    q: typeof r.q === "string" ? r.q : "", last: r.last === true, t: isNum(r.t) ? r.t : 0 };
+  if (isWord(r.hl)) out.hl = r.hl;
+  if (isWord(r.ul)) out.ul = r.ul;
+  return out;
+}
+
+const validHistory = (h) => isObj(h) && isInt(h.b) && h.b < 66 && isInt(h.c) && isInt(h.v) && isNum(h.t);
+
 export function importBackup(data) {
   if (!data || data.app !== "bible-pwa") throw new Error(t("err.notBackup"));
-  Object.assign(state.marks, data.marks || {});
-  Object.assign(state.notes, data.notes || {});
-  Object.assign(state.ranges, data.ranges || {});
-  Object.assign(state.rnotes, data.rnotes || {});
-  Object.assign(state.bookmarks, data.bookmarks || {});
+  const isKey = (k) => KEY_RE.test(k);
+  const isId = (k) => ID_RE.test(k);
+  Object.assign(state.marks, pick(data.marks, isKey, cleanMark));
+  Object.assign(state.notes, pick(data.notes, isKey, cleanNote));
+  Object.assign(state.ranges, pick(data.ranges, isId, cleanRange));
+  Object.assign(state.rnotes, pick(data.rnotes, isId, cleanNote));
+  Object.assign(state.bookmarks, pick(data.bookmarks, isKey, (v) => (isNum(v) ? v : undefined)));
   const seen = new Set(state.history.map((h) => h.t));
-  state.history = [...state.history, ...(data.history || []).filter((h) => !seen.has(h.t))]
+  const incoming = Array.isArray(data.history) ? data.history.filter(validHistory) : [];
+  state.history = [...state.history, ...incoming.filter((h) => !seen.has(h.t)).map(({ b, c, v, t }) => ({ b, c, v, t }))]
     .sort((a, b) => b.t - a.t)
     .slice(0, MAX_HISTORY);
   persist("marks", "ranges", "rnotes", "notes", "bookmarks", "history");

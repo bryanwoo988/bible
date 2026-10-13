@@ -3,6 +3,14 @@
 // once, and Settings → "What's new" lists them all (whatsnew.js).
 export const RELEASES = [
   {
+    v: "1.2.1", date: "2026-10-13",
+    notes: {
+      zh: ["修好：「还原备份」只接受本 App 导出的资料格式，格式不对的条目会被略过，不会弄坏书签、笔记和标记"],
+      zht: ["修好：「還原備份」只接受本 App 匯出的資料格式，格式不對的條目會被略過，不會弄壞書籤、筆記和標記"],
+      en: ["Fixed: restoring a backup now accepts only entries in the format this app exports; anything else is skipped so it cannot break your bookmarks, notes or highlights"],
+    },
+  },
+  {
     v: "1.2.0", date: "2026-10-13",
     notes: {
       zh: [
