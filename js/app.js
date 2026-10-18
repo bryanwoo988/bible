@@ -1833,6 +1833,22 @@ $("#btn-intro").onclick = () => openIntro();
 
 /* ---------- Settings ---------- */
 
+// Each side has its own look; "system" switches between the two with the phone.
+// Preview colours (page, card, accent) follow the [data-palette] blocks in css/app.css.
+const LOOKS = { light: ["classic", "paper", "mint", "lavender"], dark: ["midnight", "oled", "slate", "grape"] };
+const LOOK_COLOURS = {
+  classic: ["#faf8f3", "#ffffff", "#8a5a2b"], paper: ["#f6f1e7", "#fffdf8", "#a8571a"],
+  mint: ["#eef7f3", "#ffffff", "#0b7f62"], lavender: ["#f5f3fc", "#ffffff", "#5b45c4"],
+  midnight: ["#16171a", "#1f2024", "#d9a86c"], oled: ["#000000", "#0d0d0d", "#d9a86c"],
+  slate: ["#23272f", "#2c313b", "#8cbcea"], grape: ["#17121f", "#221a2e", "#b89dff"],
+};
+const lookButtons = (side, cur) => LOOKS[side].map((n) => {
+  const [bg, surface, accent] = LOOK_COLOURS[n];
+  return `<button class="look${n === cur ? " on" : ""}" data-side="${side}" data-look="${n}" aria-pressed="${n === cur}">` +
+    `<span class="look-prev" style="background:${bg}"><span class="look-card" style="background:${surface}"><i style="background:${accent}"></i><b></b></span></span>` +
+    `<span class="look-name">${t("look." + n)}</span></button>`;
+}).join("");
+
 function applySettings() {
   const s = state.settings;
   document.body.classList.toggle("text-zh", s.textMode === "zh");
@@ -1842,11 +1858,17 @@ function applySettings() {
   if (s.theme === "system") delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = s.theme;
   const dark = s.theme === "dark" || (s.theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+  if (!LOOKS.light.includes(s.lightTheme)) s.lightTheme = "classic";
+  if (!LOOKS.dark.includes(s.darkTheme)) s.darkTheme = "midnight";
+  document.documentElement.dataset.palette = dark ? s.darkTheme : s.lightTheme;
+  // The browser bar takes the page colour of the look in use.
+  const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || (dark ? "#16171a" : "#faf8f3");
   $$('meta[name="theme-color"]').forEach((m) => {
-    m.content = dark ? "#16171a" : "#faf8f3";
+    m.content = bg;
     m.removeAttribute("media");
   });
 }
+
 
 function openSettings(focusImport = false) {
   const s = state.settings;
@@ -1880,10 +1902,13 @@ function openSettings(focusImport = false) {
     </div>
 
     <div class="set-title">${t("set.appearance")}</div>
-    <div class="set-group"><div class="set-row">
-      <div class="seg full" id="theme" style="flex:1">
+    <div class="set-group"><div class="set-col">
+      <div class="seg full" id="theme">
         ${["system", "light", "dark"].map((v) => `<button data-theme="${v}" class="${s.theme === v ? "on" : ""}">${t("theme." + v)}</button>`).join("")}
-      </div></div></div>
+      </div>
+      <p class="theme-note">${t("theme.note")}</p></div>
+      <div class="set-col"><span class="lbl">${t("theme.lightLooks")}</span><div class="looks" id="looks-light">${lookButtons("light", s.lightTheme)}</div></div>
+      <div class="set-col"><span class="lbl">${t("theme.darkLooks")}</span><div class="looks" id="looks-dark">${lookButtons("dark", s.darkTheme)}</div></div></div>
 
     <div class="set-title">${t("set.tts")}</div>
     <div class="set-group">
@@ -1964,6 +1989,18 @@ function openSettings(focusImport = false) {
     applySettings();
     persist("settings");
   };
+  // Picking a look also shows it: a light look switches a fixed dark mode to light, and back.
+  $$(".looks", body).forEach((box) => (box.onclick = (e) => {
+    const el = e.target.closest("[data-look]");
+    if (!el) return;
+    const side = el.dataset.side;
+    s[side === "dark" ? "darkTheme" : "lightTheme"] = el.dataset.look;
+    if (s.theme !== "system" && s.theme !== side) s.theme = side;
+    $$(".look", box).forEach((x) => { x.classList.toggle("on", x === el); x.setAttribute("aria-pressed", String(x === el)); });
+    $$("#theme button", body).forEach((x) => x.classList.toggle("on", x.dataset.theme === s.theme));
+    applySettings();
+    persist("settings");
+  }));
   const segPick = (id, key, cast = String) => ($(id, body).onclick = (e) => {
     const el = e.target.closest("[data-v]");
     if (!el) return;

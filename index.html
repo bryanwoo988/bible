@@ -28,6 +28,9 @@
     try {
       const s = JSON.parse(localStorage.getItem("bible.settings") || "{}");
       if (s.theme === "light" || s.theme === "dark") document.documentElement.dataset.theme = s.theme;
+      const dark = s.theme === "dark" || (s.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+      const looks = dark ? ["midnight", "oled", "slate", "grape"] : ["classic", "paper", "mint", "lavender"];
+      document.documentElement.dataset.palette = looks.includes(dark ? s.darkTheme : s.lightTheme) ? (dark ? s.darkTheme : s.lightTheme) : looks[0];
       if (s.fontSize) document.documentElement.style.setProperty("--fs", s.fontSize + "px");
       if (s.ui) document.documentElement.lang = { zhs: "zh-Hans", zht: "zh-Hant", en: "en" }[s.ui] || "zh-Hans";
     } catch (e) {}

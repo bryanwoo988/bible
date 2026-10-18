@@ -79,6 +79,28 @@
   color-scheme: dark;
 }
 
+/* Theme looks: the light or dark base above picks the side, data-palette the
+   look on that side (applySettings resolves "system"). Classic and Midnight
+   are the base itself; highlight colours stay the same. */
+:root[data-palette="paper"] {
+  --bg: #f6f1e7; --surface: #fffdf8; --surface-2: #efe7d8; --line: #e3d9c6; --text: #2b2620; --text-2: #5e5446; --muted: #857a69; --accent: #a8571a; --accent-soft: #f4e4d3;
+}
+:root[data-palette="mint"] {
+  --bg: #eef7f3; --surface: #ffffff; --surface-2: #e0f1ea; --line: #cde4da; --text: #15302a; --text-2: #4a645d; --muted: #6f8781; --accent: #0b7f62; --accent-soft: #d9efe6;
+}
+:root[data-palette="lavender"] {
+  --bg: #f5f3fc; --surface: #ffffff; --surface-2: #ebe7f8; --line: #dcd6f0; --text: #231f3a; --text-2: #575078; --muted: #7d779b; --accent: #5b45c4; --accent-soft: #e7e2fa;
+}
+:root[data-palette="oled"] {
+  --bg: #000000; --surface: #0d0d0d; --surface-2: #1a1a1a; --line: #262626; --text: #ededed; --text-2: #b0b0b0; --muted: #8a8a8a;
+}
+:root[data-palette="slate"] {
+  --bg: #23272f; --surface: #2c313b; --surface-2: #363c48; --line: #404857; --text: #e2e6ec; --text-2: #b3bbc6; --muted: #949daa; --accent: #8cbcea; --accent-soft: #2f3e52;
+}
+:root[data-palette="grape"] {
+  --bg: #17121f; --surface: #221a2e; --surface-2: #2d243c; --line: #3a2f4d; --text: #ede7f8; --text-2: #c0b5d6; --muted: #9a8fb2; --accent: #b89dff; --accent-soft: #30264a;
+}
+
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body {
@@ -263,6 +285,18 @@ body.selecting .pager { display: none; }
 .seg button.on { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
 .seg.small button { padding: 6px 10px; font-size: 13px; }
 .seg.full { display: flex; }
+.set-col { display: block; padding: 12px 0; }
+.set-col + .set-col, .set-row + .set-col { border-top: 1px solid var(--line); }
+.set-col .lbl { display: block; margin-bottom: 8px; font-size: 15.5px; }
+.theme-note { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.looks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; width: 100%; }
+.look { display: flex; flex-direction: column; gap: 5px; padding: 5px; border: 2px solid transparent; border-radius: 14px; background: none; color: var(--text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.look.on { border-color: var(--accent); }
+.look-prev { display: block; height: 52px; padding: 8px; border-radius: 10px; border: 1px solid rgba(127, 127, 127, .28); }
+.look-card { display: flex; flex-direction: column; gap: 5px; height: 100%; padding: 6px; border-radius: 6px; }
+.look-card i { display: block; width: 45%; height: 6px; border-radius: 3px; }
+.look-card b { display: block; width: 75%; height: 5px; border-radius: 3px; background: rgba(127, 127, 127, .35); }
+.look-name { text-align: center; line-height: 1.25; }
 .seg.full button { flex: 1; }
 
 /* ---------- Sheet ---------- */

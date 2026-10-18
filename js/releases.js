@@ -3,6 +3,23 @@
 // once, and Settings → "What's new" lists them all (whatsnew.js).
 export const RELEASES = [
   {
+    v: "1.4.0", date: "2026-10-18",
+    notes: {
+      zh: [
+        "设置 → 外观里新增 4 种浅色主题（经典、纸张、薄荷、薰衣草）和 4 种深色主题（午夜、纯黑 OLED、石板、葡萄）",
+        "「跟随系统」时，手机为浅色就用你选的浅色主题，为深色就用你选的深色主题",
+      ],
+      zht: [
+        "設定 → 外觀裡新增 4 種淺色主題（經典、紙張、薄荷、薰衣草）和 4 種深色主題（午夜、純黑 OLED、石板、葡萄）",
+        "「跟隨系統」時，手機為淺色就用你選的淺色主題，為深色就用你選的深色主題",
+      ],
+      en: [
+        "Settings → Appearance now offers four light themes (Classic, Paper, Mint, Lavender) and four dark themes (Midnight, OLED Black, Slate, Grape)",
+        "In Follow system mode the app uses your chosen light theme when your phone is light and your dark theme when it is dark",
+      ],
+    },
+  },
+  {
     v: "1.3.0", date: "2026-10-18",
     notes: {
       zh: [
