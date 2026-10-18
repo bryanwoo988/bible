@@ -6,6 +6,7 @@ import {
   prefetchVersion, importVersion, removeVersion, guessMeta,
 } from "./versions.js";
 import { RELEASES, APP_VERSION } from "./releases.js";
+import { searchTerms, termsRegex, highlightHTML, highlightDOM, searchVersion, hasCjk } from "./search.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -99,6 +100,8 @@ async function render({ scrollTo, flash } = {}) {
   </div>`);
   chapterEl.innerHTML = html.join("");
   rendered = { b, c };
+  if (searchHit && searchHit.b === b && searchHit.c === c) chapterEl.querySelectorAll(".v .t").forEach((el) => highlightDOM(el, searchHit.re));
+  else searchHit = null;
 
   const target = scrollTo ?? tab.v ?? 1;
   if (document.body.classList.contains("page-open")) {
@@ -109,6 +112,7 @@ async function render({ scrollTo, flash } = {}) {
 }
 
 let pendingReaderScroll = null;
+let searchHit = null; // { b, c, re }: search words to mark in the chapter opened from search results
 let recordingHistory = true; // off until a brand-new user finishes the welcome screen
 
 function scrollReaderTo(v, flash = false) {
@@ -250,6 +254,7 @@ function rerenderVerse(v) {
   const fresh = tmp.firstElementChild;
   if (selection.has(v)) fresh.classList.add("sel");
   for (const cls of ["reading", "focus"]) if (old.classList.contains(cls)) fresh.classList.add(cls);
+  if (searchHit && searchHit.b === b && searchHit.c === c) fresh.querySelectorAll(".t").forEach((el) => highlightDOM(el, searchHit.re));
   old.replaceWith(fresh);
 }
 
@@ -1191,23 +1196,36 @@ function goFromPage(b, c, v = null) {
   go(b, c, v, { flash: !!v && v > 1, newTab });
 }
 
+let search = { q: "", book: null, shown: 0 }; // kept while moving between the book list and the reader
+let searchRun = 0;
+const SEARCH_PAGE = 100;
+
 function openBooks({ newTab = pendingNewTab, title = null } = {}) {
   pendingNewTab = newTab;
   const tab = activeTab();
   booksTestament ||= BOOKS[tab.b].nt ? "nt" : "ot";
-  const body = openPage("books", title || t(newTab ? "nav.titleNewTab" : "books.title"), "", {
+  const body = openPage("books", title || t(newTab ? "nav.titleNewTab" : "books.title"), `
+    <form class="search" id="nav-search">
+      ${ICON.search}
+      <input id="nav-q" type="text" placeholder="${t("nav.placeholder")}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" value="${esc(search.q)}">
+      <button class="clear" type="button" data-clear-search aria-label="${t("search.clear")}"${search.q ? "" : " hidden"}>${ICON.x}</button>
+      <button class="go" type="submit">${t("nav.go")}</button>
+    </form>
+    <div id="search-results"></div>
+    <div id="books-main"></div>`, {
     actions: versionPill(),
     back: newTab ? { label: t("cancel"), onClick: () => { pendingNewTab = false; showReader(); } } : null,
   });
+  const main = $("#books-main", body);
+  const results = $("#search-results", body);
+  const input = $("#nav-q", body);
+  let hits = [];
+  let re = null;
+
   const draw = () => {
     const recent = recentPassages(6);
     const books = booksTestament === "ot" ? BOOKS.slice(0, 39) : BOOKS.slice(39);
-    body.innerHTML = `
-      <form class="search" id="nav-search">
-        ${ICON.search}
-        <input id="nav-q" type="search" placeholder="${t("nav.placeholder")}" autocomplete="off" enterkeyhint="go">
-        <button class="go" type="submit">${t("nav.go")}</button>
-      </form>
+    main.innerHTML = `
       ${!newTab && state.settings.onboarded && state.history.length ? `<button class="continue-card" data-continue>
           <span><span class="k">${t("books.continue")}</span><span class="r" style="display:block">${esc(refText(tab.b, tab.c, tab.v > 1 ? tab.v : null))}</span></span>
           <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>` : ""}
@@ -1222,16 +1240,111 @@ function openBooks({ newTab = pendingNewTab, title = null } = {}) {
           <span class="info"><span class="name">${esc(bookName(bk.i))}</span>
             <span class="meta">${esc(otherBookName(bk.i))} · ${t(bk.i === 18 ? "intro.psalms" : "intro.chapters", { n: bk.chapters })}</span></span>
           ${CHEVRON}</button>`).join("")}</div>`;
-    $("#nav-search", body).onsubmit = (e) => {
-      e.preventDefault();
-      const r = parseRef($("#nav-q", body).value);
-      if (!r) return toast(t("nav.notFound"));
-      goFromPage(r.book, r.chapter, r.verse);
-    };
+  };
+
+  /** The matching verses: a book filter row, then the verses with the words marked. */
+  const drawHits = (ref) => {
+    const refCard = ref ? `<button class="search-ref" data-ref="${vkey(ref.book, ref.chapter, ref.verse || 1)}">
+        <span><span class="k">${t("search.goto")}</span><span class="r">${esc(refText(ref.book, ref.chapter, ref.verse))}</span></span>${CHEVRON}</button>` : "";
+    if (!re) return (results.innerHTML = refCard);
+    if (!hits.length) return (results.innerHTML = refCard + `<p class="search-none">${t("search.none", { q: esc(search.q.trim()) })}</p>`);
+    const perBook = new Map();
+    for (const h of hits) perBook.set(h.b, (perBook.get(h.b) || 0) + 1);
+    if (search.book !== null && !perBook.has(search.book)) search.book = null;
+    const list = search.book === null ? hits : hits.filter((h) => h.b === search.book);
+    const shown = list.slice(0, search.shown);
+    const chip = (b, label, n) => `<button data-hit-book="${b}" class="${search.book === b ? "on" : ""}">${esc(label)} <small>${n}</small></button>`;
+    results.innerHTML = `${refCard}
+      <div class="search-count">${t("search.count", { n: hits.length })}${perBook.size > 1 ? ` · ${t("search.books", { n: perBook.size })}` : ""}</div>
+      ${perBook.size > 1 ? `<div class="hit-books">${chip(null, t("search.all"), hits.length)}${[...perBook].map(([b, n]) => chip(b, bookName(b), n)).join("")}</div>` : ""}
+      <div class="hit-list">${shown.map((h) => `<button class="hit" data-hit="${vkey(h.b, h.c, h.v)}">
+          <span class="ref">${esc(refText(h.b, h.c, h.v))}</span>
+          <span class="txt${h.lang === "en" ? " en" : ""}">${highlightHTML(h.text, re)}</span></button>`).join("")}</div>
+      ${list.length > shown.length ? `<button class="btn search-more" data-more>${t("search.more", { n: list.length - shown.length })}</button>` : ""}`;
+    const chips = $(".hit-books", results);
+    const on = $(".hit-books .on", results);
+    if (chips && on) chips.scrollLeft = on.offsetLeft - (chips.clientWidth - on.offsetWidth) / 2;
+  };
+
+  const runSearch = async () => {
+    const q = input.value;
+    const run = ++searchRun;
+    if (q !== search.q) search = { q, book: null, shown: SEARCH_PAGE };
+    search.shown ||= SEARCH_PAGE;
+    $("[data-clear-search]", body).hidden = !q;
+    main.hidden = !!q.trim();
+    if (!q.trim()) {
+      results.innerHTML = "";
+      re = null;
+      return;
+    }
+    const ref = parseRef(q);
+    // "约3:16" is a reference; "约翰" or "爱" is also worth searching the text for.
+    const terms = ref && /\d/.test(q) ? [] : searchTerms(q);
+    re = termsRegex(terms);
+    hits = [];
+    if (!re) return drawHits(ref);
+    const lang = hasCjk(q) || !englishVersion() ? "zh" : "en";
+    const id = lang === "zh" ? state.settings.zh : englishVersion();
+    const slow = setTimeout(() => run === searchRun && (results.innerHTML = `<p class="search-none">${t("search.loading")}</p>`), 150);
+    try {
+      const found = await searchVersion(id, terms);
+      if (run !== searchRun) return;
+      hits = found.map((h) => ({ ...h, lang }));
+    } catch {
+      if (run === searchRun) results.innerHTML = `<p class="search-none">${t("loadError")}</p>`;
+      return;
+    } finally {
+      clearTimeout(slow);
+    }
+    drawHits(ref);
+  };
+
+  let typing;
+  input.oninput = () => {
+    clearTimeout(typing);
+    typing = setTimeout(runSearch, 200);
+  };
+  $("#nav-search", body).onsubmit = (e) => {
+    e.preventDefault();
+    const q = input.value;
+    const r = parseRef(q);
+    if (r && (/\d/.test(q) || !searchTerms(q).length)) return goFromPage(r.book, r.chapter, r.verse);
+    clearTimeout(typing);
+    runSearch().then(() => {
+      if (hits.length) input.blur(); // hide the keyboard so the results can be read
+      else if (r) goFromPage(r.book, r.chapter, r.verse);
+      else toast(t("nav.notFound"));
+    });
   };
   body.onclick = (e) => {
     const el = e.target.closest("button");
-    if (!el || el.closest("form")) return;
+    if (!el) return;
+    if (el.dataset.clearSearch !== undefined) {
+      input.value = "";
+      runSearch();
+      return input.focus();
+    }
+    if (el.closest("form")) return;
+    if (el.dataset.ref) {
+      const { b, c, v } = parseKey(el.dataset.ref);
+      return goFromPage(b, c, v > 1 ? v : null);
+    }
+    if (el.dataset.hit) {
+      const { b, c, v } = parseKey(el.dataset.hit);
+      searchHit = { b, c, re };
+      return goFromPage(b, c, v);
+    }
+    if (el.dataset.hitBook !== undefined) {
+      search.book = el.dataset.hitBook === "null" ? null : Number(el.dataset.hitBook);
+      search.shown = SEARCH_PAGE;
+      drawHits(parseRef(search.q));
+      return;
+    }
+    if (el.dataset.more !== undefined) {
+      search.shown += SEARCH_PAGE;
+      return drawHits(parseRef(search.q));
+    }
     if (el.dataset.continue !== undefined) return showReader();
     if (el.dataset.clearRecent !== undefined) {
       state.settings.recentClearedAt = Date.now();
@@ -1258,6 +1371,7 @@ function openBooks({ newTab = pendingNewTab, title = null } = {}) {
     }
   };
   draw();
+  if (search.q) runSearch();
 }
 
 function openChapters(b) {

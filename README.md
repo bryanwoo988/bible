@@ -6,7 +6,7 @@ A simple bilingual (Chinese / English) Bible app that installs on a phone's home
 
 - **中英对照**: each verse shows one line of Chinese, then one line of English, or one language only (经文显示)
 - **底部导航**: 内容 (book list → chapters → reading), 笔记, 书签, 历史, 设定
-- **内容**: large Old/New Testament book list, big chapter buttons, "continue reading", recent passages, and reference search (`约3:16`, `John 3:16`, `1co13`)
+- **内容**: large Old/New Testament book list, big chapter buttons, "continue reading", recent passages, reference search (`约3:16`, `John 3:16`, `1co13`) and keyword search (`神爱世人`, `faith hope`) with the words highlighted, results grouped by book, and the words marked in the opened chapter
 - **多分页**: keep several passages open (sermon text plus cross-references), switch with one tap, press and hold to reorder
 - **朗读**: read-aloud mode switch in the header. When on, tap a verse to listen from there; the player has a progress bar, speed control and voice choice, and continues into the next chapter. When off, tapping verses selects them for marking
 - **标记**: press and hold to select any words, even across verses, then highlight or underline in 5 colours, add a note, copy or bookmark; whole verses can be marked too

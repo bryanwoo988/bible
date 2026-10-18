@@ -3,6 +3,26 @@
 // once, and Settings → "What's new" lists them all (whatsnew.js).
 export const RELEASES = [
   {
+    v: "1.3.0", date: "2026-10-18",
+    notes: {
+      zh: [
+        "「内容」页的搜索框可以搜关键字了：输入「神爱世人」或「love」，马上列出所有含这些字的经文，关键字会标亮",
+        "搜索结果上方按书卷分类，点一卷书（如「诗篇 52」）就只看那卷，更快找到要的章节",
+        "点结果打开经文，那一章里的关键字也会标出来；多个字用空格隔开，会找同时含有这些字的经文",
+      ],
+      zht: [
+        "「內容」頁的搜尋框可以搜關鍵字了：輸入「神愛世人」或「love」，馬上列出所有含這些字的經文，關鍵字會標亮",
+        "搜尋結果上方按書卷分類，點一卷書（如「詩篇 52」）就只看那卷，更快找到要的章節",
+        "點結果開啟經文，那一章裡的關鍵字也會標出來；多個字用空格隔開，會找同時含有這些字的經文",
+      ],
+      en: [
+        "The search box on the book list now finds words: type \u201cfaith\u201d or \u201c神爱世人\u201d to list every verse that contains them, with the words highlighted",
+        "Above the results, tap a book (such as \u201cPsalms 52\u201d) to see only that book and get to the right chapter faster",
+        "Opening a result marks the words in that chapter too; separate several words with spaces to find verses that contain all of them",
+      ],
+    },
+  },
+  {
     v: "1.2.0", date: "2026-10-13",
     notes: {
       zh: [
