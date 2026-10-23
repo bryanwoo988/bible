@@ -11,3 +11,4 @@ __pycache__/
 .claude-flow/
 .swarm/
 ruvector.db
+agentdb.rvf*
