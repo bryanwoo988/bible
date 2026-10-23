@@ -4,7 +4,7 @@
 // Cache Storage, so every cache name carries this app's prefix and only
 // caches with that prefix are ever deleted here.
 const PREFIX = "bible-";
-const VERSION = "v17";
+const VERSION = "v18";
 const SHELL = `${PREFIX}shell-${VERSION}`;
 const DATA = `${PREFIX}data-v1`; // bump only when the text files change
 // Names used before the prefix (up to shell-v11 / data-v1). Nobody else on

@@ -3,6 +3,14 @@
 // once, and Settings → "What's new" lists them all (whatsnew.js).
 export const RELEASES = [
   {
+    v: "1.5.1", date: "2026-10-23",
+    notes: {
+      zh: ["点正在看的分页不会再跳到章数页，按住拖动排列分页时不怕误触；要换章请点上面的书名或底部的「内容」"],
+      zht: ["點正在看的分頁不會再跳到章數頁，按住拖動排列分頁時不怕誤觸；要換章請點上面的書名或底部的「內容」"],
+      en: ["Tapping the tab you are reading no longer opens the chapter numbers, so reordering tabs is safe from mis-taps; to change chapter, tap the book name at the top or \u201cBible\u201d at the bottom"],
+    },
+  },
+  {
     v: "1.5.0", date: "2026-10-23",
     notes: {
       zh: [

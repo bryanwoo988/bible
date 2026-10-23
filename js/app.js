@@ -548,7 +548,8 @@ $("#tabstrip").addEventListener("click", (e) => {
   const tab = e.target.closest("[data-tab]");
   if (!tab) return;
   const i = Number(tab.dataset.tab);
-  if (i === state.activeTab) return openCurrentBook();
+  // Tapping the open tab does nothing: it is easy to hit while reordering tabs.
+  if (i === state.activeTab) return;
   ttsStop();
   state.activeTab = i;
   persist("activeTab");
