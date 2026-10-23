@@ -748,7 +748,27 @@ function copyText(verses) {
    ============================================================ */
 
 const synth = window.speechSynthesis;
-const tts = { on: false, playing: false, v: 1, part: 0, token: 0, wake: null };
+// noVoice[lang]: the chosen voice failed, let the phone pick one by language.
+// dead[lang]: that also failed, so this language is skipped until read-aloud is turned on again.
+const tts = { on: false, playing: false, v: 1, part: 0, token: 0, wake: null, noVoice: {}, dead: {} };
+let lastCancel = 0;
+
+/** Stop speaking. Chrome on Android can swallow an utterance spoken right after cancel(), so remember when. */
+function cancelSpeech() {
+  if (!synth) return;
+  if (synth.speaking || synth.pending) lastCancel = Date.now();
+  synth.cancel();
+}
+
+/** Android Chrome often has no voice list yet on the first tap; wait for it briefly. */
+function voicesReady() {
+  if (!synth || synth.getVoices().length) return Promise.resolve();
+  return new Promise((done) => {
+    const finish = () => { synth.removeEventListener?.("voiceschanged", finish); done(); };
+    synth.addEventListener?.("voiceschanged", finish);
+    setTimeout(finish, 1200);
+  });
+}
 const RATES = [0.6, 0.75, 0.9, 1, 1.15, 1.3];
 const PLAY_ICON = '<svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg>';
 const PAUSE_ICON = '<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
@@ -789,7 +809,8 @@ function listVoices(lang) {
     if (!prev || quality(v) > quality(prev)) byKey.set(key, v);
   }
   const all = [...byKey.values()];
-  const rank = (v) => (NICE_VOICE.test(v.name) ? 0 : 1) + (lang === "en" ? (/^en[-_]US/i.test(v.lang) ? 0 : 2) : /^(zh[-_]HK|yue)/i.test(v.lang) ? 4 : /^zh[-_]TW/i.test(v.lang) ? 2 : 0);
+  // Network voices make no sound offline, so voices on the phone come first.
+  const rank = (v) => (v.localService === false ? 6 : 0) + (NICE_VOICE.test(v.name) ? 0 : 1) + (lang === "en" ? (/^en[-_]US/i.test(v.lang) ? 0 : 2) : /^(zh[-_]HK|yue)/i.test(v.lang) ? 4 : /^zh[-_]TW/i.test(v.lang) ? 2 : 0);
   return all.sort((a, z) => rank(a) - rank(z) || a.name.localeCompare(z.name));
 }
 
@@ -802,7 +823,7 @@ function pickVoice(lang) {
 function utter(text, lang, { noVoice = false } = {}) {
   const u = new SpeechSynthesisUtterance(text);
   // After a failed attempt, let the phone pick its own Chinese voice by language.
-  const voice = noVoice || (lang === "zh" && tts.zhNoVoice) ? null : pickVoice(lang);
+  const voice = noVoice || tts.noVoice[lang] ? null : pickVoice(lang);
   if (voice) u.voice = voice;
   u.lang = voice?.lang || (lang === "en" ? "en-US" : "zh-CN");
   u.rate = state.settings.ttsRate;
@@ -817,8 +838,8 @@ function ttsParts(v) {
   const parts = [];
   const zh = el.querySelector(".zh .t")?.textContent.replace(/（[注註]：[^）]*）/g, "");
   const en = el.querySelector(".en .t")?.textContent;
-  if (zh && mode !== "en") parts.push(["zh", zh]);
-  if (en && mode !== "zh") parts.push(["en", en]);
+  if (zh && mode !== "en" && !tts.dead.zh) parts.push(["zh", zh]);
+  if (en && mode !== "zh" && !tts.dead.en) parts.push(["en", en]);
   return parts;
 }
 
@@ -849,39 +870,65 @@ async function ttsSpeak() {
   speakPart(text, lang);
 }
 
+/** Languages read aloud with the current settings. */
+function ttsLangs() {
+  const mode = state.settings.textMode !== "both" ? state.settings.textMode : state.settings.ttsContent;
+  return mode === "both" ? ["zh", "en"] : [mode];
+}
+
 /**
- * Speak one line. Some Android phones have no Chinese voice data: the engine then
- * fails, or "finishes" instantly without a sound. Retry once letting the phone
- * choose a voice by language, and if that also fails, explain how to fix it.
+ * Speak one line. Some Android phones have a broken or missing voice: the engine
+ * then fails, or "finishes" at once without a sound, and reading would race through
+ * the chapter in silence. Retry once letting the phone choose a voice by language;
+ * if that also fails, skip that language, and stop with an explanation when no
+ * language is left, instead of moving on as if the line was read.
  */
-function speakPart(text, lang, retried = false) {
+function speakPart(text, lang) {
   const u = utter(text, lang);
   const token = ++tts.token;
-  const started = Date.now();
+  let begun = 0;
   const next = () => {
     if (token !== tts.token || !tts.playing) return;
     tts.part++;
     ttsSpeak();
   };
-  const failed = () => {
+  const failed = (why) => {
     if (token !== tts.token || !tts.playing) return;
-    if (lang === "zh" && !retried && !tts.zhNoVoice) {
-      tts.zhNoVoice = true;
-      return speakPart(text, lang, true);
+    if (!tts.noVoice[lang]) {
+      tts.noVoice[lang] = true;
+      return speakPart(text, lang);
+    }
+    tts.dead[lang] = true;
+    if (!ttsLangs().some((l) => !tts.dead[l])) {
+      ttsStop();
+      return warnNoSound(why);
     }
     if (lang === "zh") warnNoChinese();
     next();
   };
   u.onend = () => {
-    const tooQuick = lang === "zh" && text.length > 4 && Date.now() - started < Math.min(500, text.length * 50);
-    if (tooQuick) failed();
+    // Real speech takes at least ~50 ms per Chinese character, ~12 ms per English letter.
+    const tooQuick = text.length > 3 && Date.now() - begun < Math.min(600, text.length * (lang === "zh" ? 50 : 12));
+    if (tooQuick) failed("too-quick");
     else next();
   };
   u.onerror = (e) => {
     if (e.error === "interrupted" || e.error === "canceled") return;
-    failed();
+    failed(e.error || "error");
   };
-  synth.speak(u);
+  const wait = Math.max(0, lastCancel + 200 - Date.now());
+  setTimeout(() => {
+    if (token !== tts.token || !tts.playing) return;
+    begun = Date.now();
+    synth.speak(u);
+  }, wait);
+}
+
+function warnNoSound(why) {
+  const body = openSheet(t("tts.failTitle"), `<p style="line-height:1.7;font-size:16px;margin:4px 0 8px">${t("tts.failBody")}</p>
+    <p class="hint" style="margin:0 0 16px">${esc(why)}</p>
+    <div class="note-actions"><button class="btn primary" id="nosound-ok">OK</button></div>`);
+  $("#nosound-ok", body).onclick = closeSheet;
 }
 
 function warnNoChinese() {
@@ -932,19 +979,23 @@ async function keepAwake(on) {
   } catch {}
 }
 
-function ttsStart(v) {
+async function ttsStart(v) {
   if (!synth) return toast(t("tts.unsupported"));
-  synth.cancel();
-  Object.assign(tts, { on: true, playing: true, v: v || firstFullyVisibleVerse() || 1, part: 0 });
+  cancelSpeech();
+  // A fresh start gives every voice another chance (the user may have fixed the phone's settings).
+  Object.assign(tts, { on: true, playing: true, v: v || firstFullyVisibleVerse() || 1, part: 0, noVoice: {}, dead: {} });
+  tts.token++;
   keepAwake(true);
   updatePlayer();
-  ttsSpeak();
+  const token = tts.token;
+  await voicesReady();
+  if (token === tts.token) ttsSpeak();
 }
 
 function ttsPause() {
   tts.playing = false;
   tts.token++;
-  synth?.cancel();
+  cancelSpeech();
   keepAwake(false);
   updatePlayer();
 }
@@ -961,7 +1012,7 @@ function ttsStop() {
   if (!tts.on) return;
   tts.on = tts.playing = false;
   tts.token++;
-  synth?.cancel();
+  cancelSpeech();
   keepAwake(false);
   $$(".v.reading", chapterEl).forEach((el) => el.classList.remove("reading"));
   updatePlayer();
@@ -972,7 +1023,7 @@ function ttsJump(delta, absolute = null) {
   tts.v = Math.min(Math.max(1, absolute ?? tts.v + delta), count);
   tts.part = 0;
   tts.token++;
-  synth.cancel();
+  cancelSpeech();
   if (tts.playing) ttsSpeak();
   else markReading();
 }
@@ -1016,7 +1067,7 @@ $("#pl-speed").onclick = () => {
   updatePlayer();
   if (tts.playing) {
     tts.token++;
-    synth.cancel();
+    cancelSpeech();
     ttsSpeak();
   }
 };
@@ -2046,8 +2097,9 @@ function openSettings(focusImport = false) {
   const preview = (lang) => {
     if (!synth) return toast(t("tts.unsupported"));
     if (tts.on) ttsStop();
-    synth.cancel();
-    synth.speak(utter(lang === "en" ? SAMPLE_EN : sampleZh(), lang));
+    cancelSpeech();
+    const u = utter(lang === "en" ? SAMPLE_EN : sampleZh(), lang);
+    setTimeout(() => synth.speak(u), Math.max(0, lastCancel + 200 - Date.now()));
   };
   $$("[data-preview]", body).forEach((b) => (b.onclick = () => preview(b.dataset.preview)));
   segPick("#tts-rate", "ttsRate", Number);

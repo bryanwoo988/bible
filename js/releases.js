@@ -3,6 +3,23 @@
 // once, and Settings → "What's new" lists them all (whatsnew.js).
 export const RELEASES = [
   {
+    v: "1.5.2", date: "2026-10-23",
+    notes: {
+      zh: [
+        "修好：部分 Android 手机朗读时没有声音、经文一节节飞快跳过。现在会先换用手机自己的声音再试；还是没声音就停下来，并说明怎样设定手机",
+        "朗读开始前会等手机的声音列表准备好，第一次按朗读更可靠",
+      ],
+      zht: [
+        "修好：部分 Android 手機朗讀時沒有聲音、經文一節節飛快跳過。現在會先換用手機自己的聲音再試；還是沒聲音就停下來，並說明怎樣設定手機",
+        "朗讀開始前會等手機的聲音列表準備好，第一次按朗讀更可靠",
+      ],
+      en: [
+        "Fixed: on some Android phones read-aloud made no sound and raced through the verses. It now retries with the phone's own voice, and if there is still no sound it stops and explains how to set up the phone",
+        "Read-aloud now waits for the phone's voice list before starting, so the first tap on Listen works more reliably",
+      ],
+    },
+  },
+  {
     v: "1.5.1", date: "2026-10-23",
     notes: {
       zh: ["点正在看的分页不会再跳到章数页，按住拖动排列分页时不怕误触；要换章请点上面的书名或底部的「内容」"],

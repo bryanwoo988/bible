@@ -192,6 +192,8 @@ export default {
   "search.more": "Show more ({n} left)",
   "search.none": "No verses contain \u201c{q}\u201d",
   "search.loading": "Searching…",
+  "tts.failTitle": "Read-aloud made no sound",
+  "tts.failBody": "This phone’s speech engine didn’t produce any sound, so reading has stopped. Try this:<br>1. Turn up the <b>media volume</b> (not the ringer) and turn off silent mode.<br>2. <b>Android:</b> Settings → Text-to-speech output (or Accessibility → Text-to-speech) → set the preferred engine to “Google Text-to-speech” → gear icon → Install voice data → download Chinese (China) and English.<br>3. Back in this app, go to Settings → Read aloud, set both voices to “Automatic (recommended)” and tap Preview to check there is sound.<br>4. Tap Listen again.",
   "tts.noZhTitle": "Chinese can’t be read aloud",
   "tts.noZhBody": "This phone doesn’t seem to have a Chinese voice installed, so only the English was read.<br><br><b>Android:</b> Settings → Text-to-speech output (or Accessibility → Text-to-speech) → set the preferred engine to “Google Text-to-speech” → gear icon → Install voice data → Chinese (China). Then come back and tap Listen again.<br><br><b>iPhone:</b> Settings → Accessibility → Spoken Content → Voices → Chinese.",
   "mark.title": "Highlight",
