@@ -548,7 +548,7 @@ $("#tabstrip").addEventListener("click", (e) => {
   const tab = e.target.closest("[data-tab]");
   if (!tab) return;
   const i = Number(tab.dataset.tab);
-  if (i === state.activeTab) return openBooks({ newTab: false });
+  if (i === state.activeTab) return openCurrentBook();
   ttsStop();
   state.activeTab = i;
   persist("activeTab");
@@ -1163,7 +1163,9 @@ $("#bottomnav").onclick = (e) => {
   switch (btn.dataset.nav) {
     case "bible":
       // Like iOS tab bars: tapping the active tab goes back to its first screen.
-      if (view === "reader" || view === "chapters") openBooks();
+      // From the reader go to this book's chapters first; tap again for the book list.
+      if (view === "reader") openCurrentBook();
+      else if (view === "chapters") booksFrom(chaptersBook);
       else if (view === "books") window.scrollTo({ top: 0, behavior: "smooth" });
       else if (bibleView === "reader") showReader();
       else openBooks();
@@ -1300,6 +1302,13 @@ function openBooks({ newTab = pendingNewTab, title = null } = {}) {
     drawHits(ref);
   };
 
+  // A reference has done its job once opened; only word searches stay for next time.
+  const goToRef = (b, c, v) => {
+    clearTimeout(typing);
+    search = { q: "", book: null, shown: 0 };
+    goFromPage(b, c, v);
+  };
+
   let typing;
   input.oninput = () => {
     clearTimeout(typing);
@@ -1309,11 +1318,11 @@ function openBooks({ newTab = pendingNewTab, title = null } = {}) {
     e.preventDefault();
     const q = input.value;
     const r = parseRef(q);
-    if (r && (/\d/.test(q) || !searchTerms(q).length)) return goFromPage(r.book, r.chapter, r.verse);
+    if (r && (/\d/.test(q) || !searchTerms(q).length)) return goToRef(r.book, r.chapter, r.verse);
     clearTimeout(typing);
     runSearch().then(() => {
       if (hits.length) input.blur(); // hide the keyboard so the results can be read
-      else if (r) goFromPage(r.book, r.chapter, r.verse);
+      else if (r) goToRef(r.book, r.chapter, r.verse);
       else toast(t("nav.notFound"));
     });
   };
@@ -1328,7 +1337,7 @@ function openBooks({ newTab = pendingNewTab, title = null } = {}) {
     if (el.closest("form")) return;
     if (el.dataset.ref) {
       const { b, c, v } = parseKey(el.dataset.ref);
-      return goFromPage(b, c, v > 1 ? v : null);
+      return goToRef(b, c, v > 1 ? v : null);
     }
     if (el.dataset.hit) {
       const { b, c, v } = parseKey(el.dataset.hit);
@@ -1374,20 +1383,38 @@ function openBooks({ newTab = pendingNewTab, title = null } = {}) {
   if (search.q) runSearch();
 }
 
+let chaptersBook = 0;
+
+/** The book list, on the testament of book b. */
+function booksFrom(b) {
+  booksTestament = BOOKS[b].nt ? "nt" : "ot";
+  openBooks();
+}
+
 function openChapters(b) {
+  chaptersBook = b;
   const tab = activeTab();
   const book = BOOKS[b];
   const body = openPage("chapters", bookName(b), `
     <p class="hint" style="margin:2px 2px 14px">${esc(otherBookName(b))} · ${t(b === 18 ? "intro.psalms" : "intro.chapters", { n: book.chapters })}</p>
     <div class="chapter-grid">${range(book.chapters).map((c) =>
       `<button data-c="${c}" class="${!pendingNewTab && b === tab.b && c === tab.c ? "cur" : ""}">${c}</button>`).join("")}</div>`, {
-    back: { label: t("books.back"), onClick: () => openBooks() },
+    back: { label: t("books.back"), onClick: () => booksFrom(b) },
     actions: `<button class="page-intro-btn" data-intro="${b}"><svg viewBox="0 0 24 24"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H11v17H5.5A1.5 1.5 0 0 1 4 18.5zM20 4.5A1.5 1.5 0 0 0 18.5 3H13v17h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>${t("nav.intro")}</button>`,
   });
   body.onclick = (e) => {
     const el = e.target.closest("[data-c]");
     if (el) goFromPage(b, Number(el.dataset.c));
   };
+  // Scroll only when the current chapter is below the first screen (Psalm 119), so 1 stays in view otherwise.
+  const cur = $(".chapter-grid .cur", body);
+  if (cur && cur.getBoundingClientRect().bottom > innerHeight - 90) cur.scrollIntoView({ block: "center" });
+}
+
+/** The chapter numbers of the book being read, e.g. from 诗篇 23 straight to 诗篇 1. */
+function openCurrentBook() {
+  pendingNewTab = false;
+  openChapters(activeTab().b);
 }
 
 /* ---------- Version & display sheet ---------- */
@@ -1451,7 +1478,7 @@ function recentPassages(n) {
 
 const range = (n) => Array.from({ length: n }, (_, i) => i + 1);
 
-$("#btn-ref").onclick = () => openBooks({ newTab: false });
+$("#btn-ref").onclick = () => openCurrentBook();
 $("#btn-version").onclick = () => openVersionSheet();
 
 /* ---------- Note editor ---------- */

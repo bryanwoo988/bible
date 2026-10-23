@@ -3,6 +3,26 @@
 // once, and Settings → "What's new" lists them all (whatsnew.js).
 export const RELEASES = [
   {
+    v: "1.5.0", date: "2026-10-23",
+    notes: {
+      zh: [
+        "读经时点上面的书名（如「诗篇 23」）、当前分页或底部的「内容」，会直接打开这卷书的章数，一按就能换到别的章（例如从诗篇 23 篇到第 1 篇），不必再去旧约里找诗篇",
+        "要换别的书卷，在章数页按左上角「内容」或再按一次底部的「内容」",
+        "修好：用经文出处（如「诗23」）跳过去后，下次回到「内容」页，书卷列表不会再被旧的搜索字挡住",
+      ],
+      zht: [
+        "讀經時點上面的書名（如「詩篇 23」）、目前分頁或底部的「內容」，會直接開啟這卷書的章數，一按就能換到別的章（例如從詩篇 23 篇到第 1 篇），不必再去舊約裡找詩篇",
+        "要換別的書卷，在章數頁按左上角「內容」或再按一次底部的「內容」",
+        "修好：用經文出處（如「詩23」）跳過去後，下次回到「內容」頁，書卷列表不會再被舊的搜尋字擋住",
+      ],
+      en: [
+        "While reading, tapping the book name at the top (such as \u201cPsalms 23\u201d), the current tab or \u201cBible\u201d at the bottom now opens that book's chapter numbers, so you can jump from Psalm 23 to Psalm 1 in one tap",
+        "To pick another book, tap \u201cBooks\u201d at the top left of the chapter page, or tap \u201cBible\u201d at the bottom again",
+        "Fixed: after jumping to a reference (such as \u201cPs 23\u201d), the book list is no longer hidden by the old search the next time",
+      ],
+    },
+  },
+  {
     v: "1.4.0", date: "2026-10-18",
     notes: {
       zh: [
