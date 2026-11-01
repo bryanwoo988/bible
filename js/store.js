@@ -20,6 +20,8 @@ function save(key, value) {
   }
 }
 
+export const COLORS = ["yellow", "green", "blue", "pink", "orange"];
+
 export const DEFAULT_SETTINGS = {
   fontSize: 19, theme: "system", lightTheme: "classic", darkTheme: "midnight", zh: "cuv", en: null,
   ttsContent: "both", ttsZhVoice: "", ttsEnVoice: "", ttsRate: 0.9, textMode: "both", listen: true,
@@ -122,15 +124,37 @@ export function exportBackup() {
   };
 }
 
+/* A backup file is only trusted as far as these checks go: its values end up in
+   the page's HTML, and a bad book number would break the lists. */
+const isObj = (x) => x && typeof x === "object" && !Array.isArray(x);
+const nat = (n, max = Infinity) => Number.isInteger(n) && n >= 1 && n <= max;
+const okPlace = (b, c, v) => Number.isInteger(b) && b >= 0 && b < 66 && nat(c, 150) && nat(v, 200);
+const okKey = (k) => /^\d+\.\d+\.\d+$/.test(k) && okPlace(...k.split(".").map(Number));
+const okId = (id) => typeof id === "string" && /^[\w-]{1,40}$/.test(id);
+const okColor = (c) => c === undefined || COLORS.includes(c);
+const okTime = (n) => Number.isFinite(n) && n >= 0;
+const okNote = (n) => isObj(n) && typeof n.text === "string" && okTime(n.t);
+const okMark = (m) => isObj(m) && okColor(m.hl) && okColor(m.ul) && (m.hl || m.ul) && (m.t === undefined || okTime(m.t));
+const okRange = (r) => isObj(r) && okPlace(r.b, r.c, r.v) && (r.lang === "zh" || r.lang === "en") &&
+  Number.isInteger(r.s) && Number.isInteger(r.e) && r.s >= 0 && r.s < r.e && typeof r.q === "string" &&
+  okId(r.ver) && okId(r.g) && okColor(r.hl) && okColor(r.ul) && okTime(r.t);
+
+/** The entries of obj whose key and value pass the checks. */
+function valid(obj, okK, okV) {
+  if (!isObj(obj)) return {};
+  return Object.fromEntries(Object.entries(obj).filter(([k, v]) => okK(k) && okV(v)));
+}
+
 export function importBackup(data) {
   if (!data || data.app !== "bible-pwa") throw new Error(t("err.notBackup"));
-  Object.assign(state.marks, data.marks || {});
-  Object.assign(state.notes, data.notes || {});
-  Object.assign(state.ranges, data.ranges || {});
-  Object.assign(state.rnotes, data.rnotes || {});
-  Object.assign(state.bookmarks, data.bookmarks || {});
+  Object.assign(state.marks, valid(data.marks, okKey, okMark));
+  Object.assign(state.notes, valid(data.notes, okKey, okNote));
+  Object.assign(state.ranges, valid(data.ranges, okId, okRange));
+  Object.assign(state.rnotes, valid(data.rnotes, okId, okNote));
+  Object.assign(state.bookmarks, valid(data.bookmarks, okKey, okTime));
   const seen = new Set(state.history.map((h) => h.t));
-  state.history = [...state.history, ...(data.history || []).filter((h) => !seen.has(h.t))]
+  const history = Array.isArray(data.history) ? data.history.filter((h) => isObj(h) && okPlace(h.b, h.c, h.v) && okTime(h.t)) : [];
+  state.history = [...state.history, ...history.filter((h) => !seen.has(h.t))]
     .sort((a, b) => b.t - a.t)
     .slice(0, MAX_HISTORY);
   persist("marks", "ranges", "rnotes", "notes", "bookmarks", "history");

@@ -3,6 +3,26 @@
 // once, and Settings → "What's new" lists them all (whatsnew.js).
 export const RELEASES = [
   {
+    v: "1.5.3", date: "2026-11-01",
+    notes: {
+      zh: [
+        "修好：网络不稳时快速换章，前一章迟来的「加载失败」不会再盖掉已经打开的这一章",
+        "修好：同时有两个英文译本时，在其中一个画线或清除，不会再动到另一个译本的画线",
+        "还原备份时会检查文件内容，坏掉或被改过的备份不会再弄坏「历史」等页面",
+      ],
+      zht: [
+        "修好：網路不穩時快速換章，前一章遲來的「載入失敗」不會再蓋掉已經開啟的這一章",
+        "修好：同時有兩個英文譯本時，在其中一個畫線或清除，不會再動到另一個譯本的畫線",
+        "還原備份時會檢查檔案內容，壞掉或被改過的備份不會再弄壞「歷史」等頁面",
+      ],
+      en: [
+        "Fixed: on a patchy connection, a late \u201ccouldn't load\u201d from the previous chapter no longer replaces the chapter you moved to",
+        "Fixed: with two English versions, marking or clearing words in one no longer changes the marks in the other",
+        "Restoring a backup now checks the file, so a damaged or edited backup can no longer break History or other pages",
+      ],
+    },
+  },
+  {
     v: "1.5.2", date: "2026-10-23",
     notes: {
       zh: [

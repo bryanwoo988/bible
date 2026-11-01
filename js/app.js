@@ -1,6 +1,6 @@
 import { BOOKS, parseRef, toTrad } from "./books.js";
 import { t, applyI18n, setUiLang, uiLang, isEn, intros, UI_LANGS, LOCALE } from "./i18n.js";
-import { state, persist, vkey, parseKey, recordHistory, exportBackup, importBackup } from "./store.js";
+import { state, persist, vkey, parseKey, recordHistory, exportBackup, importBackup, COLORS } from "./store.js";
 import {
   BUILTIN, allVersions, hasVersion, versionMeta, getChapter, loadImported,
   prefetchVersion, importVersion, removeVersion, guessMeta,
@@ -13,7 +13,6 @@ const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const APP_URL = "https://bryanwoo988.github.io/bible/";
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-const COLORS = ["yellow", "green", "blue", "pink", "orange"];
 const ICON = {
   note: '<svg viewBox="0 0 24 24"><path d="M4 20h4l10-10-4-4L4 16z"/></svg>',
   trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
@@ -82,6 +81,8 @@ async function render({ scrollTo, flash } = {}) {
       enId ? getChapter(enId, b, c).catch(() => null) : null,
     ]);
   } catch (e) {
+    // A late failure must not replace a chapter the user has since moved to.
+    if (activeTab() !== tab || tab.b !== b || tab.c !== c) return;
     chapterEl.innerHTML = `<div class="empty-state">${t("loadError")}<br><button class="btn" id="retry">${t("retry")}</button></div>`;
     $("#retry").onclick = () => render({ scrollTo, flash });
     return;
@@ -642,7 +643,8 @@ actionbar.addEventListener("mousedown", (e) => e.preventDefault());
 
 function markText(mode, color) {
   const pieces = textPieces;
-  const same = (r, p) => r.b === p.b && r.c === p.c && r.v === p.v && r.lang === p.lang && r.s === p.s && r.e === p.e;
+  // Only marks on the version on screen: offsets in another translation are different words.
+  const same = (r, p) => r.b === p.b && r.c === p.c && r.v === p.v && r.lang === p.lang && r.ver === verFamily(p.lang) && r.s === p.s && r.e === p.e;
   const matches = pieces.map((p) => Object.entries(state.ranges).find(([, r]) => same(r, p) && r[mode] === color));
   if (matches.every(Boolean)) {
     // The exact same text already has this colour: tapping again removes it.
@@ -659,7 +661,7 @@ function markText(mode, color) {
 function clearText() {
   const pieces = textPieces;
   for (const [id, r] of Object.entries(state.ranges)) {
-    const hit = pieces.some((p) => r.b === p.b && r.c === p.c && r.v === p.v && r.lang === p.lang && r.s < p.e && r.e > p.s);
+    const hit = pieces.some((p) => r.b === p.b && r.c === p.c && r.v === p.v && r.lang === p.lang && r.ver === verFamily(p.lang) && r.s < p.e && r.e > p.s);
     if (!hit) continue;
     delete r.hl;
     delete r.ul;
