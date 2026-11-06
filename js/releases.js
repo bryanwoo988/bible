@@ -3,6 +3,23 @@
 // once, and Settings → "What's new" lists them all (whatsnew.js).
 export const RELEASES = [
   {
+    v: "1.6.0", date: "2026-11-06",
+    notes: {
+      zh: [
+        "朗读播放器多了「中英 / 中文 / 英文」按钮（在语速旁边），点一下就换：经文照样中英对照显示，朗读可以只读中文或只读英文，从下一句开始生效",
+        "画面设成只显示一种语言时，朗读自动只读那种语言，按钮会显示出来但不能按",
+      ],
+      zht: [
+        "朗讀播放器多了「中英 / 中文 / 英文」按鈕（在語速旁邊），點一下就換：經文照樣中英對照顯示，朗讀可以只讀中文或只讀英文，從下一句開始生效",
+        "畫面設成只顯示一種語言時，朗讀自動只讀那種語言，按鈕會顯示出來但不能按",
+      ],
+      en: [
+        "The read-aloud player has a \u201cBoth / Chinese / English\u201d button next to the speed: the text still shows both languages, but you can listen to just one, starting from the next line",
+        "When only one language is on screen, only that language is read and the button shows it without changing",
+      ],
+    },
+  },
+  {
     v: "1.5.3", date: "2026-11-01",
     notes: {
       zh: [

@@ -467,7 +467,9 @@ body.playing .reader { padding-bottom: calc(190px + var(--safe-b)); }
   box-shadow: var(--shadow); animation: up 0.18s ease-out;
 }
 .pl-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
-.pl-ref { font-weight: 600; font-size: 17px; }
+.pl-ref { font-weight: 600; font-size: 17px; min-width: 0; }
+.pl-btns { display: flex; gap: 8px; flex: none; }
+.pl-speed:disabled { opacity: 0.5; }
 .pl-speed { padding: 8px 14px; border-radius: 12px; background: var(--surface-2); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .pl-ctrl { display: flex; align-items: center; justify-content: space-around; }
 .pl-ctrl button { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; color: var(--text); }

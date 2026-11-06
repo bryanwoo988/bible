@@ -969,6 +969,11 @@ function updatePlayer() {
   $("#pl-pos").textContent = t("pl.verse", { v: bar.value });
   $("#pl-total").textContent = t("pl.total", { n: total });
   $("#pl-speed").textContent = t("pl.speed", { r: state.settings.ttsRate });
+  // With only one language on screen, only that one is read, so the choice is fixed.
+  const lang = $("#pl-lang");
+  const shown = state.settings.textMode;
+  lang.textContent = t("tts." + (shown !== "both" ? shown : state.settings.ttsContent));
+  lang.disabled = shown !== "both";
   const play = $("#pl-play");
   play.innerHTML = tts.playing ? PAUSE_ICON : PLAY_ICON;
   play.setAttribute("aria-label", t(tts.playing ? "pl.pause" : "pl.resume"));
@@ -1062,6 +1067,23 @@ plBar.addEventListener("change", () => {
   plBar.dragging = false;
   ttsJump(0, Number(plBar.value));
 });
+// Read both languages, Chinese only or English only, while the text shows both.
+$("#pl-lang").onclick = () => {
+  const order = ["both", "zh", "en"];
+  const s = state.settings;
+  s.ttsContent = order[(order.indexOf(s.ttsContent) + 1) % order.length];
+  persist("settings");
+  // A language given up on earlier gets another try now that it was picked again.
+  tts.noVoice = {};
+  tts.dead = {};
+  updatePlayer();
+  if (tts.playing) {
+    tts.part = 0;
+    tts.token++;
+    cancelSpeech();
+    ttsSpeak();
+  }
+};
 $("#pl-speed").onclick = () => {
   const i = RATES.indexOf(state.settings.ttsRate);
   state.settings.ttsRate = RATES[(i + 1) % RATES.length];
@@ -1936,6 +1958,7 @@ function applySettings() {
   document.body.classList.toggle("text-en", s.textMode === "en");
   if (typeof updateVersionLabels === "function") updateVersionLabels();
   document.documentElement.style.setProperty("--fs", s.fontSize + "px");
+  if (tts.on) updatePlayer(); // the read-aloud language follows a one-language display
   if (s.theme === "system") delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = s.theme;
   const dark = s.theme === "dark" || (s.theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
