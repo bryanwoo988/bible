@@ -3,6 +3,23 @@
 // once, and Settings → "What's new" lists them all (whatsnew.js).
 export const RELEASES = [
   {
+    v: "1.7.0", date: "2026-11-18",
+    notes: {
+      zh: [
+        "新增英文译本 NLT（New Living Translation）：点上方的「和合本 · NIV」，在「英文」那一栏选 NLT，可以和和合本中英对照，也能离线、朗读、搜索",
+        "NLT 的民数记 1–2 章是表格，目前只有每个表格的第一行，其他几行会显示为空白",
+      ],
+      zht: [
+        "新增英文譯本 NLT（New Living Translation）：點上方的「和合本 · NIV」，在「英文」那一欄選 NLT，可以和和合本中英對照，也能離線、朗讀、搜尋",
+        "NLT 的民數記 1–2 章是表格，目前只有每個表格的第一行，其他幾行會顯示為空白",
+      ],
+      en: [
+        "New English version: NLT (New Living Translation). Tap \u201c和合本 · NIV\u201d at the top and pick NLT under English; it works side by side with 和合本, offline, read aloud and in search",
+        "Numbers 1\u20132 are tables in the NLT and only the first row of each is included for now, so the other rows show as blank",
+      ],
+    },
+  },
+  {
     v: "1.6.0", date: "2026-11-06",
     notes: {
       zh: [

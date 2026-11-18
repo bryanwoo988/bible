@@ -10,6 +10,10 @@ export const BUILTIN = [
     id: "niv", name: "NIV (New International Version)", short: "NIV", lang: "en",
     notice: "Scripture quotations taken from The Holy Bible, New International Version® NIV®. Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.™ Used by permission. All rights reserved worldwide.",
   },
+  {
+    id: "nlt", name: "NLT (New Living Translation)", short: "NLT", lang: "en",
+    notice: "Scripture quotations are taken from the Holy Bible, New Living Translation, copyright © 1996, 2004, 2015 by Tyndale House Foundation. Used by permission of Tyndale House Publishers, Carol Stream, Illinois 60188. All rights reserved.",
+  },
 ];
 
 const imported = new Map(); // id -> { id, name, short, lang, books }

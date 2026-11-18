@@ -20,6 +20,7 @@ A simple bilingual (Chinese / English) Bible app that installs on a phone's home
 
 - **Built in:** 和合本 (1919, public domain), simplified (`data/cuv`) and traditional (`data/cuvt`, converted with OpenCC).
 - **NIV** (`data/niv`, built with `tools/build_niv.py`): Scripture quotations taken from The Holy Bible, New International Version® NIV®. Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.™ Used by permission. All rights reserved worldwide.
+- **NLT** (`data/nlt`, built with `tools/build_nlt.py`, used with the owner's permission from Tyndale House): Scripture quotations are taken from the Holy Bible, New Living Translation, copyright © 1996, 2004, 2015 by Tyndale House Foundation. Used by permission of Tyndale House Publishers, Carol Stream, Illinois 60188. All rights reserved. The source keeps only the first row of each table in Numbers 1–2, so the other rows (Num 1:21–43 and parts of 2:4–30) are blank.
 - **Other versions:** import a JSON file under 设置 → 导入译本. Imported versions are stored only on that device.
 
 ## Releasing an update

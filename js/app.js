@@ -135,7 +135,9 @@ function verseHTML(b, c, v, zh, en) {
     : zh === "" ? `<span class="empty">${t("merged")}</span>` : "";
   const enHtml = en === undefined ? "" : en
     ? `<span class="t">${markedHTML(b, c, v, "en", en)}</span>`
-    : `<span class="empty">${en === "" ? "(Not in the earliest manuscripts)" : ""}</span>`;
+    // A blank New Testament verse is one moved to a footnote; in the Old Testament
+    // it is a table row the NLT text does not have (Numbers 1-2).
+    : `<span class="empty">${en === "" ? (b >= 39 ? "(Not in the earliest manuscripts)" : "(Not included in this translation's text)") : ""}</span>`;
   // The note badge sits on both lines; CSS shows it on the visible one.
   const badge = note ? `<span class="badges"><button class="badge" data-note="${v}" aria-label="${t("act.note")}">${ICON.note}</button></span>` : "";
   return `<div class="v" data-v="${v}" ${attrs}>
